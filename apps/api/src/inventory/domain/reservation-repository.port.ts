@@ -22,6 +22,39 @@ export interface ReservationRepository {
    * takes a pessimistic lock instead. See docs/concurrency.md.
    */
   updateState(reservation: Reservation): Promise<void>;
+
+  /**
+   * Claims a batch of lapsed holds and expires them, returning how many.
+   *
+   * Bookkeeping, not correctness: a lapsed claim already stops covering its
+   * seat the instant `valid_during` no longer contains now(), so the seat is
+   * sellable whether or not this ever runs. What this does is make `state`
+   * honest, keep the partial index small, and drop dead rows out of the
+   * exclusion index.
+   *
+   * Implementations must use `FOR UPDATE SKIP LOCKED` so that (a) sweepers on
+   * different replicas take disjoint batches instead of queueing, and (b) a
+   * reservation currently locked by an in-flight confirm is skipped rather
+   * than expired underneath it.
+   */
+  expireLapsed(limit: number): Promise<number>;
+
+  /**
+   * Loads a reservation and locks its row for the rest of the transaction.
+   *
+   * Taking the lock is what excludes the sweeper: its SKIP LOCKED scan passes
+   * over any row already locked here.
+   */
+  findByIdForUpdate(id: ReservationId): Promise<Reservation | null>;
+
+  /**
+   * Extends the claims of a confirmed reservation so they never lapse.
+   *
+   * Without this the seats would free themselves at the original TTL while
+   * payment was still in flight — and the sweeper, which only looks at
+   * PENDING rows, would not even notice. That is a double-sell.
+   */
+  extendClaimsIndefinitely(id: ReservationId): Promise<void>;
 }
 
 export const RESERVATION_REPOSITORY = Symbol('RESERVATION_REPOSITORY');

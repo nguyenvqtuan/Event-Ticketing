@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
@@ -13,7 +14,14 @@ import { PostgresErrorFilter } from './shared/interface/postgres-error.filter.js
  * for what each one owns and why the boundary falls where it does.
  */
 @Module({
-  imports: [AppConfigModule, DatabaseModule, HealthModule, InventoryModule, PaymentModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    AppConfigModule,
+    DatabaseModule,
+    HealthModule,
+    InventoryModule,
+    PaymentModule,
+  ],
   providers: [
     // Order matters: Nest applies global filters last-registered-first, so
     // the Postgres backstop is declared first and the more specific domain

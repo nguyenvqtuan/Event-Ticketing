@@ -3,10 +3,10 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-9** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-10** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
-> flow and optimistic locking on state changes are all working and verified end
-> to end against a live database.
+> flow, optimistic locking and reservation expiry are all working and verified
+> end to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -167,6 +167,14 @@ Only the holder cancels their own hold, so taking a lock on every request would
 tax all of them to defend against something that almost never happens.
 Both strategies, and the rule for choosing between them, are in
 [`docs/concurrency.md`](docs/concurrency.md).
+
+**Holds expire without anything having to run.** A claim covers its seat only
+while `valid_during` contains `now()`, so a lapsed hold frees its seat the
+instant the TTL passes — no sweeper, no write. A `@Cron` sweeper does run every
+30s, but purely as bookkeeping: it moves `PENDING → EXPIRED` so the stored state
+stops lying and dead rows leave the indexes. It fires on every replica and
+claims batches with `FOR UPDATE SKIP LOCKED`, which also means a reservation
+mid-payment is skipped rather than expired underneath it.
 
 ### Health endpoints
 

@@ -204,6 +204,85 @@ That is the failure this ticket's test reproduces: two loads at version 0, both
 cancelled in memory, first write succeeds, **second is rejected**, and the
 stored version increments exactly once.
 
+## Expiry: two layers, only one of which matters
+
+A hold past its TTL must release its seats. There are two layers, and the
+important thing is **which one is load-bearing**.
+
+### Layer 1 — lazy, and free
+
+A claim carries `valid_during = [created_at, expires_at)`. Once the TTL passes,
+the range no longer contains `now()`, so the claim stops covering its seat —
+**immediately, with no write, and whether or not any job has run.** Availability
+queries and the exclusion constraint both evaluate that same predicate, so they
+cannot disagree with each other.
+
+This is not a check anyone wrote. It falls out of the model chosen in
+[`domain.md`](domain.md), where availability is derived rather than stored. In a
+`seats.status` design this layer would have to be an explicit "is it expired?"
+test at every read, and every place that forgot it would be a bug.
+
+Consequence worth internalising: `GET /reservations/:id` reports
+`expired: true` while the stored `state` is still `PENDING`, and a payment
+arriving at that moment is rejected. Expiry is a fact about the clock.
+
+### Layer 2 — the sweeper, which is bookkeeping
+
+`ReservationSweeper` runs every 30s and moves lapsed holds `PENDING → EXPIRED`,
+marking their claims `RELEASED`. It buys:
+
+- `state` stops lying, so reporting and support queries are honest
+- the partial index on PENDING holds stays small
+- dead rows leave the GiST exclusion index
+
+It does **not** buy correctness. The seats were already free. That is why the
+job can fail, lag, or be switched off without risking a double-booking — and
+why it logs failures rather than crashing the process.
+
+### Multi-instance safety
+
+`@Cron` fires on **every replica**; there is no leader election. That is safe
+because the batch claim uses:
+
+```sql
+SELECT id FROM reservations
+ WHERE state = 'PENDING' AND expires_at < now()
+ ORDER BY expires_at
+ LIMIT $1
+   FOR UPDATE SKIP LOCKED
+```
+
+`SKIP LOCKED` does two jobs at once:
+
+1. **Replicas share the work.** Each sweeper takes a disjoint batch instead of
+   queueing behind the same rows. An advisory lock would instead elect one
+   sweeper and idle the rest — simpler, but slower, and it would not give the
+   second property.
+2. **Payment is excluded for free.** A reservation being confirmed holds a row
+   lock (`SELECT ... FOR UPDATE`), so the sweep passes straight over it. That
+   is the AC's "don't release a reservation that was just paid for", achieved
+   without a flag, a state, or a second mechanism.
+
+The sweep is idempotent: the `WHERE` only matches PENDING rows past their TTL,
+so a second pass over the same reservations matches nothing.
+
+### The payment race, both directions
+
+| Timing                             | Outcome                                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Confirm arrives **before** the TTL | Confirm wins. The row lock excludes the sweeper; claims are extended so the seats cannot lapse mid-payment. |
+| Confirm arrives **after** the TTL  | Rejected `409`, even if no sweep has run — the aggregate consults the clock, not the stored state.          |
+
+Confirming extends the claim's upper bound to `infinity`. Without that, a
+confirmed hold's seats would free themselves at the original TTL while payment
+was still in flight — and the sweeper, which only looks at `PENDING` rows,
+would never notice. That is a double-sell.
+
+> **Known gap:** a hold that is confirmed but never paid now keeps its seats
+> indefinitely. Bounding that needs a payment-window policy — a timeout after
+> which an unpaid `CONFIRMED` reservation is released — which belongs with the
+> payment flow, not here. Flagged rather than guessed at.
+
 ## Scope limits
 
 - **Lock contention is per seat row.** Disjoint seats proceed fully in
