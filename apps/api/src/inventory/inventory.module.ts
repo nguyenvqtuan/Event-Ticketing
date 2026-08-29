@@ -20,7 +20,6 @@ import {
 import { CancelReservationUseCase } from './application/cancel-reservation.use-case.js';
 import { ConfirmReservationUseCase } from './application/confirm-reservation.use-case.js';
 import { ExpireReservationsUseCase } from './application/expire-reservations.use-case.js';
-import { PayReservationUseCase } from './application/pay-reservation.use-case.js';
 import { HoldSeatsUseCase } from './application/hold-seats.use-case.js';
 import { DrizzleEventRepository } from './infrastructure/drizzle-event.repository.js';
 import { DrizzleReservationRepository } from './infrastructure/drizzle-reservation.repository.js';
@@ -63,12 +62,6 @@ import { ReservationsController } from './interface/reservations.controller.js';
       inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
     },
     {
-      provide: PayReservationUseCase,
-      useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
-        new PayReservationUseCase(reservations, transaction),
-      inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
-    },
-    {
       provide: ExpireReservationsUseCase,
       useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
         new ExpireReservationsUseCase(reservations, transaction),
@@ -103,5 +96,9 @@ import { ReservationsController } from './interface/reservations.controller.js';
       inject: [EVENT_REPOSITORY, SEAT_REPOSITORY],
     },
   ],
+  // Exported so the Payment context's adapter can claim seats through the
+  // repository rather than reaching into the database itself. The dependency
+  // points Payment -> Inventory, never back.
+  exports: [RESERVATION_REPOSITORY, SEAT_REPOSITORY, EVENT_REPOSITORY],
 })
 export class InventoryModule {}

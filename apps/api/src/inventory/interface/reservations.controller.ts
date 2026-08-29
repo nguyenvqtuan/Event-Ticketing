@@ -13,11 +13,9 @@ import {
 } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
-import { RequireIdempotencyKey } from '../../shared/infrastructure/idempotency/idempotency.decorator.js';
 import { ZodValidationPipe } from '../../shared/interface/zod-validation.pipe.js';
 import { CancelReservationUseCase } from '../application/cancel-reservation.use-case.js';
 import { ConfirmReservationUseCase } from '../application/confirm-reservation.use-case.js';
-import { PayReservationUseCase } from '../application/pay-reservation.use-case.js';
 import { HoldSeatsUseCase } from '../application/hold-seats.use-case.js';
 import {
   RESERVATION_REPOSITORY,
@@ -26,8 +24,6 @@ import {
 import {
   type CreateReservationDto,
   createReservationSchema,
-  type PayReservationDto,
-  payReservationSchema,
   reservationIdSchema,
 } from './reservation.dto.js';
 
@@ -37,7 +33,6 @@ export class ReservationsController {
     private readonly holdSeats: HoldSeatsUseCase,
     private readonly cancelReservation: CancelReservationUseCase,
     private readonly confirmReservation: ConfirmReservationUseCase,
-    private readonly payReservation: PayReservationUseCase,
     // Injected by token: the interface has no runtime representation.
     @Inject(RESERVATION_REPOSITORY)
     private readonly reservations: ReservationRepository,
@@ -66,34 +61,6 @@ export class ReservationsController {
       state: reservation.state,
       createdAt: reservation.createdAt,
       expiresAt: reservation.expiresAt,
-    };
-  }
-
-  /**
-   * Pays for a hold. The Idempotency-Key header is REQUIRED: a client
-   * retrying after a timeout cannot know whether the first attempt charged,
-   * so the key is the only thing preventing a double charge.
-   */
-  @Post(':id/pay')
-  @HttpCode(HttpStatus.OK)
-  @RequireIdempotencyKey()
-  @UseInterceptors(IdempotencyInterceptor)
-  async pay(
-    @Param('id', new ZodValidationPipe(reservationIdSchema)) id: string,
-    @Body(new ZodValidationPipe(payReservationSchema)) dto: PayReservationDto,
-  ) {
-    const { reservation, amount } = await this.payReservation.execute({
-      reservationId: id,
-      amountMinor: dto.amountMinor,
-      currency: dto.currency,
-      now: new Date(),
-    });
-
-    return {
-      reservationId: reservation.id,
-      state: reservation.state,
-      seatIds: reservation.seatIds,
-      paid: { amountMinor: amount.amountMinor, currency: amount.currency },
     };
   }
 

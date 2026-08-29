@@ -3,10 +3,11 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-11** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-12** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
-> flow, optimistic locking, reservation expiry and idempotent payments are all
-> working and verified end to end against a live database.
+> flow, optimistic locking, reservation expiry, idempotent payments and the
+> double-entry ledger are all working and verified end to end against a live
+> database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
