@@ -3,8 +3,9 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-1** — scaffold only. There is no database, no configuration
-> layer, and no domain model yet; those arrive in TICK-2 through TICK-6.
+> Status: **TICK-2** done. The scaffold and a validated configuration layer are
+> in place. There is no database and no domain model yet — those arrive in
+> TICK-3 through TICK-6.
 
 ## Layout
 
@@ -31,8 +32,12 @@ one TypeScript and lint configuration today, and shared domain types later.
 ```bash
 corepack enable pnpm
 pnpm install
+cp apps/api/.env.example apps/api/.env
 pnpm dev
 ```
+
+The `cp` is not optional — `DATABASE_URL` has no default, so the API exits
+rather than start without it (see [Configuration](#configuration)).
 
 `pnpm dev` runs both apps: the API on <http://localhost:3000> and the web client
 on <http://localhost:3001>.
@@ -58,6 +63,47 @@ Append `--filter @repo/api` or `--filter @repo/web` to scope one app.
 
 Turborepo caches `build`, `lint`, `typecheck` and `test`, so repeat runs that
 touch nothing are near-instant.
+
+## Configuration
+
+Every variable the API reads is declared in
+[`apps/api/src/config/env.schema.ts`](apps/api/src/config/env.schema.ts) and
+documented in [`apps/api/.env.example`](apps/api/.env.example). Nothing else
+reads `process.env`.
+
+| Variable                  | Default                 | Notes                                              |
+| ------------------------- | ----------------------- | -------------------------------------------------- |
+| `DATABASE_URL`            | **none — required**     | Must be a `postgres://` or `postgresql://` URL     |
+| `NODE_ENV`                | `development`           | `development` \| `test` \| `production`            |
+| `PORT`                    | `3000`                  | 1–65535                                            |
+| `LOG_LEVEL`               | `log`                   | `error` \| `warn` \| `log` \| `debug` \| `verbose` |
+| `RESERVATION_TTL_SECONDS` | `900`                   | Seat-hold lifetime; used from TICK-4               |
+| `CORS_ORIGIN`             | `http://localhost:3001` | Browser origin allowed to call the API             |
+
+Two properties are deliberate:
+
+- **It fails fast.** Validation runs when `ConfigModule.forRoot({ validate })`
+  is evaluated — during module import, before the HTTP server binds. Invalid
+  config means the process exits `1`; it never serves traffic in a bad state.
+  All problems are reported at once, not one per restart:
+
+  ```
+  Error: Invalid environment configuration:
+    - PORT: Too big: expected number to be <=65535
+    - LOG_LEVEL: Invalid option: expected one of "error"|"warn"|"log"|"debug"|"verbose"
+    - DATABASE_URL: is required — see .env.example
+  ```
+
+- **`DATABASE_URL` has no default**, on purpose. A default would let a
+  misconfigured deployment silently point at the wrong database — the one
+  failure mode worth trading local convenience for.
+
+Read config by injecting `AppConfigService`, which exposes parsed values
+(`config.port` is a `number`, already coerced and range-checked):
+
+```ts
+constructor(private readonly config: AppConfigService) {}
+```
 
 ## Architecture
 
