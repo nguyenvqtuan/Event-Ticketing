@@ -280,6 +280,40 @@ reason contract lags — by the time a column is dropped, rolling back is a
 restore-from-backup problem, not a migration problem. Down migrations are for
 the expand and migrate phases; a bad contract is fixed forward.
 
+## The ledger is append-only
+
+`ledger_entries` has `BEFORE UPDATE` and `BEFORE DELETE` triggers that raise.
+A ledger you can edit is not an audit trail: "what did we charge?" stops having
+an answer you can trust, and a bug or a bad migration can rewrite the past
+silently. Corrections are made by posting a **reversing transaction**.
+
+Enforced in the database rather than by convention, because the point is to be
+safe from code that does not know the rule — a future feature, a data fix, a
+psql session.
+
+The chart of accounts (`cash`, `ticket_revenue`, per currency) is seeded by
+migration. An account is identified by **name and currency**: "cash" in GBP and
+in EUR are different accounts, and conflating them is exactly the mistake
+`Money` refuses to make in the domain. Accounts are never created at runtime —
+a chart of accounts that invents entries on demand cannot be reconciled.
+
+### A rollback may relax a constraint, never re-tighten one
+
+Migration 0004 widened `unique(name)` to `unique(name, currency)`. Its first
+down migration tried to restore the narrower one and **failed**: the forward
+migration legitimately created `cash/GBP`, `cash/EUR` and `cash/USD`, which the
+old constraint forbids. Worse, it failed *after* dropping the triggers, leaving
+the schema half-reverted.
+
+The down migration now drops the wider index and stops there. This is the
+expand/contract rule seen from the other side: **widening is reversible,
+narrowing is not.** If the old constraint is genuinely wanted back, that is a
+new forward migration that first resolves the rows it would reject.
+
+The same reasoning is why the down migration removes only seeded accounts that
+nothing references. Deleting ledger entries to make a rollback tidy is the one
+thing an append-only ledger must never do.
+
 ## Notes for TICK-6
 
 The hot queries this schema is shaped for, and the indexes already present:

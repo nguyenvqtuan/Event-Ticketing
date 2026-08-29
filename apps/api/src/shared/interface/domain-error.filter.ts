@@ -15,7 +15,7 @@ import {
 import { EventNotFound } from '../../inventory/application/get-event-overview.use-case.js';
 import { SalesClosed, SeatsUnavailable } from '../../inventory/application/hold-seats.use-case.js';
 import { ReservationNotFound } from '../../inventory/application/cancel-reservation.use-case.js';
-import { AmountMismatch } from '../../inventory/application/pay-reservation.use-case.js';
+import { AmountMismatch } from '../../payment/application/checkout.use-case.js';
 
 /**
  * Translates domain errors into HTTP status codes.

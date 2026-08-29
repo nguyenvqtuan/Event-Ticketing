@@ -1,5 +1,4 @@
 import { InvariantViolation } from '../../shared/domain/domain-error.js';
-import { Money } from '../../shared/domain/money.js';
 import { type TransactionRunner } from '../../shared/domain/transaction-runner.port.js';
 import { Event } from '../domain/event.js';
 import {
@@ -63,8 +62,13 @@ class FakeReservations implements ReservationRepository {
   updateState() {
     return Promise.resolve();
   }
-  totalFor() {
-    return Promise.resolve(Money.of(5_000, 'GBP'));
+  pricedSeatsFor() {
+    return Promise.resolve([
+      { seatId: 'seat-1', seatCode: 'A1', priceMinor: 5_000, currency: 'GBP' },
+    ]);
+  }
+  markClaimsSold() {
+    return Promise.resolve();
   }
   expireLapsed() {
     return Promise.resolve(0);

@@ -220,7 +220,9 @@ export const ledgerAccounts = pgTable(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex('ledger_accounts_name_uq').on(table.name),
+    // An account is name + currency: "cash" in GBP and in EUR are different
+    // accounts. See migration 0004.
+    uniqueIndex('ledger_accounts_name_currency_uq').on(table.name, table.currency),
     check(
       'ledger_accounts_type_valid',
       sql`${table.type} IN ('ASSET','LIABILITY','REVENUE','EXPENSE','EQUITY')`,

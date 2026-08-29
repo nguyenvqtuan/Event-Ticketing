@@ -103,9 +103,11 @@ describe('Payment idempotency (e2e)', () => {
 
       expect(response.body).toMatchObject({
         reservationId,
-        state: 'CONFIRMED',
+        // `state` is the ORDER's state; the reservation is CONFIRMED.
+        state: 'PAID',
         paid: { amountMinor: total, currency: 'GBP' },
       });
+      expect(response.body.orderId).toEqual(expect.any(String));
       expect(await stateOf(reservationId)).toBe('CONFIRMED');
     });
 
@@ -144,7 +146,7 @@ describe('Payment idempotency (e2e)', () => {
       // and cannot be confirmed twice. The replay hides that correctly.
       const replay = await pay(reservationId, key, total).expect(200);
 
-      expect(replay.body.state).toBe('CONFIRMED');
+      expect(replay.body.state).toBe('PAID');
     });
   });
 

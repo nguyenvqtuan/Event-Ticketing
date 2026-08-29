@@ -1,5 +1,12 @@
-import { type Money } from '../../shared/domain/money.js';
 import { type Reservation, type ReservationId } from './reservation.js';
+
+/** A seat of a reservation, priced from the catalogue. */
+export interface PricedSeatRow {
+  readonly seatId: string;
+  readonly seatCode: string;
+  readonly priceMinor: number;
+  readonly currency: string;
+}
 
 export interface ReservationRepository {
   /**
@@ -58,13 +65,21 @@ export interface ReservationRepository {
   extendClaimsIndefinitely(id: ReservationId): Promise<void>;
 
   /**
-   * What the reservation's seats cost, summed from the seat catalogue.
+   * The reservation's seats with their catalogue prices.
    *
-   * Read at payment time rather than stored on the hold: the price a customer
-   * pays must be the one in effect now, and TICK-12 will freeze it onto the
-   * order lines at that moment.
+   * Read at payment time rather than stored on the hold: the price charged is
+   * the one in effect now, and it is frozen onto the order lines at that
+   * moment so a later catalogue change cannot alter it.
    */
-  totalFor(id: ReservationId): Promise<Money>;
+  pricedSeatsFor(id: ReservationId): Promise<readonly PricedSeatRow[]>;
+
+  /**
+   * HELD → SOLD, with validity extended to infinity.
+   *
+   * A sold seat must never free itself at the original TTL, and the sweeper
+   * only looks at PENDING reservations, so it would never notice.
+   */
+  markClaimsSold(id: ReservationId): Promise<void>;
 }
 
 export const RESERVATION_REPOSITORY = Symbol('RESERVATION_REPOSITORY');
