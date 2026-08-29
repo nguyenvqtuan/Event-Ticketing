@@ -1,0 +1,12 @@
+# Vulnerabilities accepted for the API image, with a reason and a date each.
+#
+# The pipeline fails on HIGH and CRITICAL findings that have a fix available
+# (`ignore-unfixed: true`), so an entry here is a deliberate, reviewable
+# decision — not a way to quiet the scanner. Every line must say why it is
+# acceptable and when it was accepted, and unfixed entries should be revisited
+# whenever the base image moves.
+#
+# Format:
+#   CVE-2025-12345  # <why it does not apply here> — accepted YYYY-MM-DD
+#
+# Empty on purpose: the image currently has no accepted exceptions.
