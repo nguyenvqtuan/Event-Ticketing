@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { DatabaseModule } from './shared/infrastructure/database/database.module.js';
+import { LoggingModule } from './shared/infrastructure/logging/logging.module.js';
 import { DomainErrorFilter } from './shared/interface/domain-error.filter.js';
 import { PostgresErrorFilter } from './shared/interface/postgres-error.filter.js';
 
@@ -15,6 +16,8 @@ import { PostgresErrorFilter } from './shared/interface/postgres-error.filter.js
  */
 @Module({
   imports: [
+    // First, so its middleware wraps every request.
+    LoggingModule,
     ScheduleModule.forRoot(),
     AppConfigModule,
     DatabaseModule,
