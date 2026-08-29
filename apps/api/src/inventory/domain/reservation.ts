@@ -61,6 +61,36 @@ export class Reservation {
     return new Reservation(id, eventId, holderId, [...seatIds], now, expiresAt, 'PENDING');
   }
 
+  /**
+   * Reconstitutes a reservation from storage.
+   *
+   * Separate from `open()` because a stored reservation may legitimately be in
+   * any state, including terminal ones — running it through `open()` would
+   * force it back to PENDING and re-derive `expiresAt` from the wrong clock.
+   * Structural invariants are still checked: a row that violates them is a
+   * corruption to surface, not to load.
+   */
+  static rehydrate(params: {
+    id: ReservationId;
+    eventId: EventId;
+    holderId: HolderId;
+    seatIds: readonly SeatId[];
+    createdAt: Date;
+    expiresAt: Date;
+    state: ReservationState;
+  }): Reservation {
+    const { id, eventId, holderId, seatIds, createdAt, expiresAt, state } = params;
+
+    if (seatIds.length === 0) {
+      throw new InvariantViolation(`Stored reservation ${id} has no seats`);
+    }
+    if (expiresAt <= createdAt) {
+      throw new InvariantViolation(`Stored reservation ${id} expires before it was created`);
+    }
+
+    return new Reservation(id, eventId, holderId, [...seatIds], createdAt, expiresAt, state);
+  }
+
   get state(): ReservationState {
     return this.currentState;
   }

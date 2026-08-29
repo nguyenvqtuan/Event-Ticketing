@@ -13,9 +13,16 @@ import {
   type EventRepository,
   type SeatRepository,
 } from './domain/inventory-repository.port.js';
+import {
+  RESERVATION_REPOSITORY,
+  type ReservationRepository,
+} from './domain/reservation-repository.port.js';
+import { HoldSeatsUseCase } from './application/hold-seats.use-case.js';
 import { DrizzleEventRepository } from './infrastructure/drizzle-event.repository.js';
+import { DrizzleReservationRepository } from './infrastructure/drizzle-reservation.repository.js';
 import { DrizzleSeatRepository } from './infrastructure/drizzle-seat.repository.js';
 import { EventsController } from './interface/events.controller.js';
+import { ReservationsController } from './interface/reservations.controller.js';
 
 /**
  * Bounded context: **Ticketing / Inventory** — see docs/domain.md.
@@ -25,12 +32,24 @@ import { EventsController } from './interface/events.controller.js';
  * `application/` stay free of framework imports.
  */
 @Module({
-  controllers: [EventsController],
+  controllers: [EventsController, ReservationsController],
   providers: [
     IdempotencyInterceptor,
 
     { provide: EVENT_REPOSITORY, useClass: DrizzleEventRepository },
     { provide: SEAT_REPOSITORY, useClass: DrizzleSeatRepository },
+    { provide: RESERVATION_REPOSITORY, useClass: DrizzleReservationRepository },
+
+    {
+      provide: HoldSeatsUseCase,
+      useFactory: (
+        events: EventRepository,
+        seats: SeatRepository,
+        reservations: ReservationRepository,
+        transaction: TransactionRunner,
+      ) => new HoldSeatsUseCase(events, seats, reservations, transaction),
+      inject: [EVENT_REPOSITORY, SEAT_REPOSITORY, RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
+    },
 
     {
       provide: CreateEventUseCase,

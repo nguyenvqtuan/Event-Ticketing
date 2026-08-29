@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseContext } from '../../shared/infrastructure/database/database.module.js';
 import { seats } from '../../shared/infrastructure/database/schema.js';
 import { type EventId } from '../domain/event.js';
 import {
+  type SeatAvailability,
   type SeatOverview,
   type SeatPage,
   type SeatRepository,
   type StoredSeat,
 } from '../domain/inventory-repository.port.js';
+import { type SeatId } from '../domain/seat.js';
 import { type SeatBlueprint } from '../domain/seat-map.js';
 
 /**
@@ -129,6 +131,67 @@ export class DrizzleSeatRepository implements SeatRepository {
     return {
       seats: rows as StoredSeat[],
       total: counted?.total ?? 0,
+    };
+  }
+
+  /**
+   * Locks the seat rows, then reports which cannot be held.
+   *
+   * `ORDER BY id ... FOR UPDATE` is doing two jobs:
+   *
+   *   FOR UPDATE — competing transactions block here rather than racing to
+   *   write. Under READ COMMITTED the waiter re-reads the newest committed row
+   *   once the lock is granted, so it sees the winner's claim and can report a
+   *   clean conflict. See docs/concurrency.md.
+   *
+   *   ORDER BY id — a deterministic lock order. Two multi-seat holds that
+   *   overlap (A,B and B,A) would otherwise each hold what the other wants and
+   *   deadlock; ordering makes that impossible.
+   *
+   * Locks `seats` rather than `reservation_items` because the row being
+   * contended for must already exist — there is no claim row to lock until
+   * someone creates one, which is the race itself.
+   */
+  async lockAndCheckAvailability(
+    eventId: EventId,
+    seatIds: readonly SeatId[],
+  ): Promise<SeatAvailability> {
+    if (seatIds.length === 0) {
+      return { missing: [], unavailable: [] };
+    }
+
+    const requested = [...new Set(seatIds)];
+
+    const locked = await this.context.db
+      .select({ id: seats.id })
+      .from(seats)
+      .where(and(eq(seats.eventId, eventId), inArray(seats.id, requested)))
+      .orderBy(seats.id)
+      .for('update');
+
+    const found = new Set(locked.map((row) => row.id));
+    const missing = requested.filter((id) => !found.has(id));
+
+    if (found.size === 0) {
+      return { missing, unavailable: [] };
+    }
+
+    // Safe to read now: every seat that exists is locked, so no concurrent
+    // transaction can add a claim for one of them until this one commits.
+    const claimed = await this.context.db.execute<{ seat_id: string }>(sql`
+      SELECT ri.seat_id
+      FROM reservation_items ri
+      WHERE ri.seat_id IN (${sql.join(
+        [...found].map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})
+        AND ri.claim_state <> 'RELEASED'
+        AND ri.valid_during @> now()
+    `);
+
+    return {
+      missing,
+      unavailable: claimed.rows.map((row) => row.seat_id),
     };
   }
 }
