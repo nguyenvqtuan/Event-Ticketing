@@ -3,15 +3,16 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-5** done. Scaffold, configuration, domain model, Docker image
-> and the Postgres schema are all working and verified end to end — the image
-> builds, `docker compose up` runs the API against Postgres, and the migrations
-> apply and roll back on a live database.
+> Status: **TICK-6** done. Scaffold, configuration, domain model, Docker image,
+> Postgres schema and the index audit are all working and verified end to end
+> against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
 [`docs/db.md`](docs/db.md) — the schema, the double-booking constraint, and the
 expand/contract migration strategy.
+[`docs/indexing.md`](docs/indexing.md) — query plans, index justifications, and
+the partial index that measurement rejected.
 
 ## Layout
 
@@ -30,6 +31,7 @@ packages/
 docs/
   domain.md               the domain model
   db.md                   schema, constraints, migration strategy
+  indexing.md             query plans and index justifications
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share
@@ -77,13 +79,15 @@ Append `--filter @repo/api` or `--filter @repo/web` to scope one app.
 
 Database commands are API-scoped and need `DATABASE_URL`:
 
-| Command                               | What it does                                 |
-| ------------------------------------- | -------------------------------------------- |
-| `pnpm --filter @repo/api db:migrate`  | Apply pending migrations                     |
-| `pnpm --filter @repo/api db:rollback` | Revert the most recent                       |
-| `pnpm --filter @repo/api db:status`   | Show applied vs pending                      |
-| `pnpm --filter @repo/api db:reset`    | up → down all → up (exercises the down path) |
-| `pnpm --filter @repo/api db:generate` | Regenerate SQL from `schema.ts`              |
+| Command                                | What it does                                 |
+| -------------------------------------- | -------------------------------------------- |
+| `pnpm --filter @repo/api db:migrate`   | Apply pending migrations                     |
+| `pnpm --filter @repo/api db:rollback`  | Revert the most recent                       |
+| `pnpm --filter @repo/api db:status`    | Show applied vs pending                      |
+| `pnpm --filter @repo/api db:reset`     | up → down all → up (exercises the down path) |
+| `pnpm --filter @repo/api db:generate`  | Regenerate SQL from `schema.ts`              |
+| `pnpm --filter @repo/api db:seed:perf` | Load 120k seats for performance work         |
+| `pnpm --filter @repo/api db:explain`   | EXPLAIN ANALYZE the hot queries              |
 
 Turborepo caches `build`, `lint`, `typecheck` and `test`, so repeat runs that
 touch nothing are near-instant.
