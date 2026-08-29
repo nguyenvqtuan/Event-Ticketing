@@ -8,6 +8,7 @@ import {
 import { type Response } from 'express';
 import { DomainError, InvalidStateTransition, InvariantViolation } from '../domain/domain-error.js';
 import { EventNotFound } from '../../inventory/application/get-event-overview.use-case.js';
+import { SalesClosed, SeatsUnavailable } from '../../inventory/application/hold-seats.use-case.js';
 
 /**
  * Translates domain errors into HTTP status codes.
@@ -33,11 +34,21 @@ export class DomainErrorFilter implements ExceptionFilter<DomainError> {
       statusCode: status,
       error: error.name,
       message: error.message,
+      // A caller that lost a race needs to know WHICH seats went, so it can
+      // retry with the rest rather than guess.
+      ...(error instanceof SeatsUnavailable
+        ? { unavailableSeatIds: error.unavailable, missingSeatIds: error.missing }
+        : {}),
     });
   }
 
   private statusFor(error: DomainError): number {
     if (error instanceof EventNotFound) return HttpStatus.NOT_FOUND;
+
+    // Lost a race for a seat, or asked for one that is already sold. The
+    // request was valid; reality moved.
+    if (error instanceof SeatsUnavailable) return HttpStatus.CONFLICT;
+    if (error instanceof SalesClosed) return HttpStatus.CONFLICT;
 
     // A caller asked for something the current state forbids — e.g. confirming
     // an expired reservation. 409 rather than 400: the request was well-formed,

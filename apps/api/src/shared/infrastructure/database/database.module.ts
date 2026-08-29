@@ -64,8 +64,16 @@ class DrizzleTransactionRunner implements TransactionRunner {
       return work();
     }
 
-    return this.context.rootDb.transaction(async (tx) =>
-      this.context.storage.run(tx as Database, work),
+    // READ COMMITTED, stated explicitly rather than inherited as the default.
+    // It suffices because the hold path takes `FOR UPDATE` on the seat rows:
+    // once the lock is granted the waiter re-reads the newest committed row,
+    // so it observes the winner's claim. REPEATABLE READ would instead abort
+    // the waiter with a serialization failure needing an application retry,
+    // buying nothing the row lock does not already provide.
+    // See docs/concurrency.md.
+    return this.context.rootDb.transaction(
+      async (tx) => this.context.storage.run(tx as Database, work),
+      { isolationLevel: 'read committed' },
     );
   }
 }

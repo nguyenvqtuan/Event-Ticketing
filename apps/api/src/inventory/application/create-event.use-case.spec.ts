@@ -34,6 +34,9 @@ class FakeSeatRepository implements SeatRepository {
   listByAvailability() {
     return Promise.resolve({ seats: [], total: 0 });
   }
+  lockAndCheckAvailability() {
+    return Promise.resolve({ missing: [], unavailable: [] });
+  }
 }
 
 /** Records whether the work ran inside a transaction boundary. */

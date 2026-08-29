@@ -6,6 +6,7 @@ import { InventoryModule } from './inventory/inventory.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { DatabaseModule } from './shared/infrastructure/database/database.module.js';
 import { DomainErrorFilter } from './shared/interface/domain-error.filter.js';
+import { PostgresErrorFilter } from './shared/interface/postgres-error.filter.js';
 
 /**
  * Root module. Feature modules map to bounded contexts — see docs/domain.md
@@ -14,6 +15,10 @@ import { DomainErrorFilter } from './shared/interface/domain-error.filter.js';
 @Module({
   imports: [AppConfigModule, DatabaseModule, HealthModule, InventoryModule, PaymentModule],
   providers: [
+    // Order matters: Nest applies global filters last-registered-first, so
+    // the Postgres backstop is declared first and the more specific domain
+    // filter wins for DomainError.
+    { provide: APP_FILTER, useClass: PostgresErrorFilter },
     // Registered globally so every controller maps domain errors to status
     // codes the same way, instead of repeating try/catch.
     { provide: APP_FILTER, useClass: DomainErrorFilter },

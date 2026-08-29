@@ -3,9 +3,9 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-7** done. Scaffold, configuration, domain model, Docker image,
-> Postgres schema, index audit and the first HTTP endpoints are all working and
-> verified end to end against a live database.
+> Status: **TICK-8** done. Scaffold, configuration, domain model, Docker image,
+> Postgres schema, index audit, event/seat endpoints and the concurrent seat-hold
+> flow are all working and verified end to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -13,6 +13,8 @@ bounded contexts and the Reservation/Order state machines.
 expand/contract migration strategy.
 [`docs/indexing.md`](docs/indexing.md) — query plans, index justifications, and
 the partial index that measurement rejected.
+[`docs/concurrency.md`](docs/concurrency.md) — how holds avoid overbooking:
+locking, isolation level, and deadlock avoidance.
 
 ## Layout
 
@@ -32,6 +34,7 @@ docs/
   domain.md               the domain model
   db.md                   schema, constraints, migration strategy
   indexing.md             query plans and index justifications
+  concurrency.md          locking, isolation level, overbooking
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share
@@ -148,6 +151,14 @@ duplicate _event_, and a re-run generation that would create duplicate _seats_.
 
 Request bodies are validated with Zod; invalid payloads return `400` listing
 every offending field at once.
+
+**Holding seats is the contended path.** When N requests race for the same seat
+exactly one wins and the rest get `409` — enforced in Postgres, not in process
+memory, so it holds across instances. Seat rows are locked with `FOR UPDATE` in
+seat-id order (deterministic, so overlapping multi-seat holds cannot deadlock),
+under `READ COMMITTED`, with TICK-5's exclusion constraint as the backstop.
+Verified with 20 concurrent holds: 1 × `201`, 19 × `409`, one live claim in the
+database. See [`docs/concurrency.md`](docs/concurrency.md).
 
 ### Health endpoints
 

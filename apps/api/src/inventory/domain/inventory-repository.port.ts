@@ -33,6 +33,14 @@ export interface SeatPage {
   readonly total: number;
 }
 
+/** Why a set of seats cannot be held. Both lists empty means "go ahead". */
+export interface SeatAvailability {
+  /** Requested but not part of this event — a client error, not a race. */
+  readonly missing: readonly SeatId[];
+  /** Real, but already covered by a live claim. */
+  readonly unavailable: readonly SeatId[];
+}
+
 export interface SeatRepository {
   /**
    * Inserts seats, ignoring any whose (event_id, code) already exists.
@@ -60,6 +68,21 @@ export interface SeatRepository {
     limit: number;
     offset: number;
   }): Promise<SeatPage>;
+
+  /**
+   * Takes an exclusive row lock on the given seats, then reports which of them
+   * cannot be held.
+   *
+   * The lock is the point: it serialises everyone competing for a seat, so a
+   * loser waits and then sees the winner's committed claim, instead of both
+   * discovering the conflict at write time. Must only be called inside a
+   * transaction — the lock is released at commit.
+   *
+   * Implementations must lock in a deterministic order (seat id) so two
+   * multi-seat holds that overlap cannot deadlock by grabbing rows in
+   * opposite orders.
+   */
+  lockAndCheckAvailability(eventId: EventId, seatIds: readonly SeatId[]): Promise<SeatAvailability>;
 }
 
 /** DI tokens — interfaces do not survive compilation. */
