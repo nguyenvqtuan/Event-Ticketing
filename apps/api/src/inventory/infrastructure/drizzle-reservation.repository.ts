@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseContext } from '../../shared/infrastructure/database/database.module.js';
 import { reservationItems, reservations } from '../../shared/infrastructure/database/schema.js';
+import { ConcurrentModification } from '../../shared/domain/domain-error.js';
 import { Reservation, type ReservationId } from '../domain/reservation.js';
 import { type ReservationRepository } from '../domain/reservation-repository.port.js';
 
@@ -58,6 +59,52 @@ export class DrizzleReservationRepository implements ReservationRepository {
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
       state: row.state as Reservation['state'],
+      version: row.version,
     });
+  }
+
+  /**
+   * Optimistic update: `WHERE id = ? AND version = ?`, bumping the version in
+   * the same statement so the check and the increment are one atomic act.
+   *
+   * Zero rows affected is the whole mechanism — it means the row moved since
+   * we read it, so this write would have lost someone else's change. No
+   * trigger auto-increments `version`, deliberately: a trigger plus this
+   * statement would bump it twice, and having the assertion visible in the
+   * UPDATE is the point.
+   */
+  async updateState(reservation: Reservation): Promise<void> {
+    const db = this.context.db;
+
+    const updated = await db
+      .update(reservations)
+      .set({
+        state: reservation.state,
+        version: reservation.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(reservations.id, reservation.id), eq(reservations.version, reservation.version)),
+      )
+      .returning({ id: reservations.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrentModification('Reservation', reservation.id);
+    }
+
+    // A terminal state releases the seats. Setting claim_state to RELEASED
+    // drops the rows out of the exclusion constraint, so the seats become
+    // available immediately rather than at the end of the original TTL.
+    if (reservation.state === 'CANCELLED' || reservation.state === 'EXPIRED') {
+      await db
+        .update(reservationItems)
+        .set({ claimState: 'RELEASED', updatedAt: new Date() })
+        .where(
+          and(
+            eq(reservationItems.reservationId, reservation.id),
+            inArray(reservationItems.claimState, ['HELD']),
+          ),
+        );
+    }
   }
 }

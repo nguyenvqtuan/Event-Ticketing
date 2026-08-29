@@ -139,6 +139,71 @@ This is why `GET /reservations/:id` reports `expired: true` while the stored
 `state` is still `PENDING`: expiry is a fact about the clock, not a flag
 somebody has to set.
 
+## Optimistic vs pessimistic: choosing per operation
+
+Both strategies are used here, on different operations, and the choice follows
+from **how contended the row is** — not from preference.
+
+|                       | Holding seats (TICK-8)                    | Changing reservation state (TICK-9)               |
+| --------------------- | ----------------------------------------- | ------------------------------------------------- |
+| Strategy              | **Pessimistic** — `SELECT ... FOR UPDATE` | **Optimistic** — `WHERE id = ? AND version = ?`   |
+| Contention            | High. Thousands race for one seat         | Near zero. Only the holder touches their own hold |
+| Loser gets            | To wait, then a definite answer           | `409`, re-read and retry                          |
+| Cost when uncontended | A lock acquisition on every request       | Nothing — one extra `WHERE` predicate             |
+| Cost when contended   | Waiting, bounded by the transaction       | Wasted work, retried                              |
+
+The reasoning in one line each:
+
+**Seats are pessimistic because conflict is the expected case.** When a popular
+event opens, many requests want the same row at the same moment. Optimistic
+locking there would mean most writers do the work, fail, and retry — converting
+contention into load. Making them queue is cheaper and gives a definite answer.
+
+**Reservation state is optimistic because conflict is the rare case.** Only the
+holder cancels their own hold. A conflict means a double-click, or a sweeper
+expiring it in the same instant. Taking a lock on every cancel to defend
+against that would tax every request to protect against something that almost
+never happens.
+
+The general rule: **pessimistic when contention is likely and waiting is
+cheaper than redoing; optimistic when contention is unlikely and holding a lock
+would cost more than the occasional retry.** A third case is worth naming —
+when the gap between read and write includes user think-time or a network call,
+optimistic is the only safe option, because a lock held that long blocks
+everyone behind it.
+
+### How the version check works
+
+```sql
+UPDATE reservations
+   SET state = $1, version = version + 1, updated_at = now()
+ WHERE id = $2 AND version = $3      -- the version we read
+```
+
+Zero rows affected **is** the mechanism: it means the row moved since we read
+it, so this write would have overwritten someone else's change. The repository
+turns that into `ConcurrentModification`, which the error filter maps to `409`.
+
+The check and the increment are one statement, so they are atomic without a
+lock. No trigger auto-increments `version` — a trigger plus this statement
+would bump it twice, and having the assertion visible in the `UPDATE` is
+exactly the point.
+
+### The lost update it prevents
+
+Without the version predicate, two writers that both read version 0 both
+succeed, and one change silently disappears:
+
+```
+T1: read (state=PENDING)          T2: read (state=PENDING)
+T1: UPDATE state='CANCELLED'      T2: UPDATE state='CONFIRMED'
+                                  → T1's cancellation is gone, no error
+```
+
+That is the failure this ticket's test reproduces: two loads at version 0, both
+cancelled in memory, first write succeeds, **second is rejected**, and the
+stored version increments exactly once.
+
 ## Scope limits
 
 - **Lock contention is per seat row.** Disjoint seats proceed fully in

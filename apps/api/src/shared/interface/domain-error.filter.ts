@@ -6,9 +6,15 @@ import {
   Logger,
 } from '@nestjs/common';
 import { type Response } from 'express';
-import { DomainError, InvalidStateTransition, InvariantViolation } from '../domain/domain-error.js';
+import {
+  ConcurrentModification,
+  DomainError,
+  InvalidStateTransition,
+  InvariantViolation,
+} from '../domain/domain-error.js';
 import { EventNotFound } from '../../inventory/application/get-event-overview.use-case.js';
 import { SalesClosed, SeatsUnavailable } from '../../inventory/application/hold-seats.use-case.js';
+import { ReservationNotFound } from '../../inventory/application/cancel-reservation.use-case.js';
 
 /**
  * Translates domain errors into HTTP status codes.
@@ -44,6 +50,11 @@ export class DomainErrorFilter implements ExceptionFilter<DomainError> {
 
   private statusFor(error: DomainError): number {
     if (error instanceof EventNotFound) return HttpStatus.NOT_FOUND;
+    if (error instanceof ReservationNotFound) return HttpStatus.NOT_FOUND;
+
+    // Someone else changed the row between our read and our write. 409 tells
+    // the caller to re-read and retry — the write was refused, not lost.
+    if (error instanceof ConcurrentModification) return HttpStatus.CONFLICT;
 
     // Lost a race for a seat, or asked for one that is already sold. The
     // request was valid; reality moved.

@@ -3,9 +3,10 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-8** done. Scaffold, configuration, domain model, Docker image,
-> Postgres schema, index audit, event/seat endpoints and the concurrent seat-hold
-> flow are all working and verified end to end against a live database.
+> Status: **TICK-9** done. Scaffold, configuration, domain model, Docker image,
+> Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
+> flow and optimistic locking on state changes are all working and verified end
+> to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -158,7 +159,14 @@ memory, so it holds across instances. Seat rows are locked with `FOR UPDATE` in
 seat-id order (deterministic, so overlapping multi-seat holds cannot deadlock),
 under `READ COMMITTED`, with TICK-5's exclusion constraint as the backstop.
 Verified with 20 concurrent holds: 1 × `201`, 19 × `409`, one live claim in the
-database. See [`docs/concurrency.md`](docs/concurrency.md).
+database.
+
+**Changing reservation state is the uncontended path**, so it uses optimistic
+locking instead: `WHERE id = ? AND version = ?`, zero rows affected → `409`.
+Only the holder cancels their own hold, so taking a lock on every request would
+tax all of them to defend against something that almost never happens.
+Both strategies, and the rule for choosing between them, are in
+[`docs/concurrency.md`](docs/concurrency.md).
 
 ### Health endpoints
 

@@ -17,6 +17,7 @@ import {
   RESERVATION_REPOSITORY,
   type ReservationRepository,
 } from './domain/reservation-repository.port.js';
+import { CancelReservationUseCase } from './application/cancel-reservation.use-case.js';
 import { HoldSeatsUseCase } from './application/hold-seats.use-case.js';
 import { DrizzleEventRepository } from './infrastructure/drizzle-event.repository.js';
 import { DrizzleReservationRepository } from './infrastructure/drizzle-reservation.repository.js';
@@ -49,6 +50,12 @@ import { ReservationsController } from './interface/reservations.controller.js';
         transaction: TransactionRunner,
       ) => new HoldSeatsUseCase(events, seats, reservations, transaction),
       inject: [EVENT_REPOSITORY, SEAT_REPOSITORY, RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
+    },
+    {
+      provide: CancelReservationUseCase,
+      useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
+        new CancelReservationUseCase(reservations, transaction),
+      inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
     },
 
     {
