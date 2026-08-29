@@ -13,7 +13,9 @@
     "lint:fix": "turbo run lint -- --fix",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:cov": "turbo run test:cov",
     "test:e2e": "turbo run test:e2e",
+    "verify": "turbo run lint typecheck test:cov test:e2e",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yaml,yml}\""
   },

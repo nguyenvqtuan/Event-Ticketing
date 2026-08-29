@@ -3,12 +3,12 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-15** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-16** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
 > flow, optimistic locking, reservation expiry, idempotent payments and the
-> double-entry ledger, refunds-by-reversal, structured logging and the
-> Terminus health probes are all working and verified end to end against a
-> live database.
+> double-entry ledger, refunds-by-reversal, structured logging, the Terminus
+> health probes and a Testcontainers-backed test foundation are all working and
+> verified end to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -18,6 +18,8 @@ expand/contract migration strategy.
 the partial index that measurement rejected.
 [`docs/concurrency.md`](docs/concurrency.md) — how holds avoid overbooking:
 locking, isolation level, and deadlock avoidance.
+[`docs/testing.md`](docs/testing.md) — the pyramid, the Testcontainers harness,
+and what unit tests are allowed to know.
 
 ## Layout
 
@@ -38,6 +40,7 @@ docs/
   db.md                   schema, constraints, migration strategy
   indexing.md             query plans and index justifications
   concurrency.md          locking, isolation level, overbooking
+  testing.md              the pyramid, Testcontainers, coverage policy
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share
@@ -73,15 +76,17 @@ curl localhost:3000/healthz   # {"status":"ok","info":{"process":{"state":"ok",.
 Every command runs from the repository root and fans out through Turborepo.
 Append `--filter @repo/api` or `--filter @repo/web` to scope one app.
 
-| Command          | What it does                            |
-| ---------------- | --------------------------------------- |
-| `pnpm dev`       | Run both apps in watch mode             |
-| `pnpm build`     | Build both apps                         |
-| `pnpm lint`      | ESLint across the workspace             |
-| `pnpm typecheck` | `tsc --noEmit` across the workspace     |
-| `pnpm test`      | API unit tests (Jest)                   |
-| `pnpm test:e2e`  | API end-to-end tests (Jest + supertest) |
-| `pnpm format`    | Rewrite files with Prettier             |
+| Command          | What it does                             |
+| ---------------- | ---------------------------------------- |
+| `pnpm dev`       | Run both apps in watch mode              |
+| `pnpm build`     | Build both apps                          |
+| `pnpm lint`      | ESLint across the workspace              |
+| `pnpm typecheck` | `tsc --noEmit` across the workspace      |
+| `pnpm verify`    | **Everything CI runs**, in one command   |
+| `pnpm test`      | Unit tests — no database, under a second |
+| `pnpm test:cov`  | Unit tests plus the coverage report      |
+| `pnpm test:e2e`  | Integration tests, real Postgres         |
+| `pnpm format`    | Rewrite files with Prettier              |
 
 Database commands are API-scoped and need `DATABASE_URL`:
 
@@ -258,6 +263,49 @@ Structured JSON on stdout, one object per line, with a correlation ID on
 `nestjs-pino` is the usual choice, but it ships CommonJS and `require()`s
 `@nestjs/common`, which is ESM-only from NestJS 12 — it fails at import. pino
 and pino-http are used directly instead.
+
+## Testing
+
+```bash
+pnpm verify   # lint + typecheck + unit (with coverage) + integration
+```
+
+That is the whole command, locally and in CI —
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs it and nothing else.
+
+**170 unit tests** run in under a second against no database at all. The inner
+layers are framework-free by construction, so a test double is a plain class
+implementing a port — no DI container, no mocking library.
+
+**116 integration tests** run against a real Postgres that the suite starts
+itself: [Testcontainers](https://testcontainers.com/) brings up the same
+`postgres:17-alpine` image compose uses, and the project's **own migration
+runner** applies the schema — the path a deploy takes, so a migration that
+would fail in production fails here first. There is no "start the database
+first" step, and no CI service container.
+
+Two details that make parallel suites safe against one server:
+
+- **A database per Jest worker**, cloned from a migrated template
+  (`CREATE DATABASE … TEMPLATE`, which Postgres does by copying files). Against
+  a shared database, a reset in one worker would truncate rows another was
+  asserting on.
+- **`resetDatabase()`**, the reusable helper suites call in `beforeAll` — or in
+  `beforeEach` where isolation actually matters, as the expiry suite does,
+  since the sweeper claims every lapsed reservation in the database.
+
+Mocks are deliberately absent from this layer: exactly one of twenty concurrent
+holds winning a seat is a fact about Postgres row locks and an exclusion
+constraint, and only Postgres can demonstrate it.
+
+`pnpm test:cov` writes an lcov report to `apps/api/coverage/` and fails below
+95% for `domain/` and `application/` — the layers unit tests own.
+`infrastructure/` and `interface/` are covered by the integration suite instead,
+where the queries and filters they exist to drive actually run.
+
+Why the rest of it looks the way it does — the reset helper's two preserved
+tables, the suites that spawn a real process, the Docker discovery for Colima —
+is in [`docs/testing.md`](docs/testing.md).
 
 ## Configuration
 

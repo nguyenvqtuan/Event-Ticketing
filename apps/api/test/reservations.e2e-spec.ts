@@ -4,12 +4,12 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import { DatabaseContext } from '../src/shared/infrastructure/database/database.module.js';
 
 /**
- * TICK-8's mandatory concurrency tests, against a real Postgres.
- *
- *   docker compose up -d db && pnpm --filter @repo/api db:migrate
+ * TICK-8's mandatory concurrency tests, against a real Postgres — provisioned
+ * and migrated by test/support/global-setup.ts.
  *
  * These race real HTTP requests through real transactions. Mocks cannot show
  * what is being asserted here: that Postgres, not application code, is what
@@ -60,6 +60,12 @@ describe('Reservations — holds and concurrency (e2e)', () => {
     );
     return Number(result.rows[0]?.n ?? 0);
   }
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();

@@ -5,9 +5,16 @@ packages:
 # Native deps that legitimately need a build step:
 #   @parcel/watcher  — file watching for `nest start --watch` / `next dev`
 #   unrs-resolver    — native resolver behind eslint-import-resolver-typescript
+#
+# Testcontainers' Docker client pulls in cpu-features, protobufjs and ssh2 for
+# talking to a REMOTE daemon over SSH. The local socket needs none of them, so
+# their build scripts are declined outright rather than left undecided.
 allowBuilds:
   '@parcel/watcher': true
+  cpu-features: false
   esbuild: true # bundler behind drizzle-kit's CLI
+  protobufjs: false
+  ssh2: false
   unrs-resolver: true
 
 minimumReleaseAgeExclude:

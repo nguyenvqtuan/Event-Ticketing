@@ -4,6 +4,7 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import { DatabaseContext } from '../src/shared/infrastructure/database/database.module.js';
 import {
   LEDGER_REPOSITORY,
@@ -86,6 +87,12 @@ describe('Ledger & order confirmation (e2e)', () => {
     const r = await db.rootDb.execute<T>(sqlText as never);
     return r.rows[0] as T | undefined;
   };
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();

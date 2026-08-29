@@ -19,9 +19,16 @@
     "test": {
       "dependsOn": ["^build"]
     },
+    "test:cov": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
     "test:e2e": {
-      // Own build, not just dependencies': the config suite spawns dist/main.js.
+      // Own build, not just dependencies': the config and health suites spawn
+      // dist/main.js.
       "dependsOn": ["build"],
+      // Never cached: it provisions a fresh Postgres container each run, and a
+      // "cached pass" against a database that no longer exists proves nothing.
       "cache": false
     }
   }

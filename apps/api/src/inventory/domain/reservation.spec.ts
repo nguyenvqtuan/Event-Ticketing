@@ -144,4 +144,52 @@ describe('Reservation', () => {
       },
     );
   });
+
+  /**
+   * Loading is not opening. `open()` enforces the rules for a NEW hold; a
+   * stored row may sit in any state those rules allowed at the time, so
+   * rehydration checks only what must be true of any row — and treats a
+   * violation as the corruption it is.
+   */
+  describe('rehydration', () => {
+    const stored = (overrides: Partial<Parameters<typeof Reservation.rehydrate>[0]> = {}) =>
+      Reservation.rehydrate({
+        id: 'res-1',
+        eventId: 'evt-1',
+        holderId: 'user-1',
+        seatIds: ['seat-1'],
+        createdAt: NOW,
+        expiresAt: AFTER_TTL,
+        state: 'PENDING',
+        version: 7,
+        ...overrides,
+      });
+
+    it('restores a stored hold without replaying its transitions', () => {
+      const reservation = stored({ state: 'CONFIRMED', version: 3 });
+
+      expect(reservation.state).toBe('CONFIRMED');
+      expect(reservation.version).toBe(3);
+      // Reaching CONFIRMED by replaying confirm() would move `version` on and
+      // re-run rules the row already satisfied when it was written.
+      expect(reservation.holdsSeats).toBe(false);
+    });
+
+    it('rejects a stored row with no seats', () => {
+      expect(() => stored({ seatIds: [] })).toThrow(InvariantViolation);
+    });
+
+    it('rejects a stored row that expires before it was created', () => {
+      expect(() => stored({ expiresAt: new Date(NOW.getTime() - 1) })).toThrow(InvariantViolation);
+    });
+
+    it('copies the seat ids, so the caller cannot mutate the aggregate', () => {
+      const seatIds = ['seat-1', 'seat-2'];
+      const reservation = stored({ seatIds });
+
+      seatIds.push('seat-3');
+
+      expect(reservation.seatIds).toHaveLength(2);
+    });
+  });
 });

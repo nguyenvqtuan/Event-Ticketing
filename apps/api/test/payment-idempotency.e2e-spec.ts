@@ -4,6 +4,7 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import { DatabaseContext } from '../src/shared/infrastructure/database/database.module.js';
 
 /**
@@ -71,6 +72,12 @@ describe('Payment idempotency (e2e)', () => {
     );
     return Number(r.rows[0]?.version);
   };
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();

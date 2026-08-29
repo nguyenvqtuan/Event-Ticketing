@@ -48,4 +48,13 @@ describe('Money', () => {
   it('formats for humans', () => {
     expect(Money.of(9_500, GBP).toString()).toBe('95.00 GBP');
   });
+
+  it('negates, which is how a refund reverses an entry', () => {
+    const negated = Money.of(9_500, GBP).negated();
+
+    expect(negated.amountMinor).toBe(-9_500);
+    // Reversing twice is the identity: a reversal of a reversal is the
+    // original posting, which is what makes refund-by-reversal auditable.
+    expect(negated.negated().equals(Money.of(9_500, GBP))).toBe(true);
+  });
 });

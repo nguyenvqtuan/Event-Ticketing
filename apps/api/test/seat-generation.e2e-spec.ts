@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { type TestingModule } from '@nestjs/testing';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import { Money } from '../src/shared/domain/money.js';
 import { Event } from '../src/inventory/domain/event.js';
 import {
@@ -29,6 +30,12 @@ describe('Seat generation idempotency (integration)', () => {
     rows: 4,
     seatsPerRow: 25,
     price: Money.of(5_000, 'GBP'),
+  });
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
   });
 
   beforeAll(async () => {

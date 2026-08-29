@@ -9,6 +9,22 @@ const CASH = 'acct-cash';
 const REVENUE = 'acct-revenue';
 
 describe('LedgerAccount', () => {
+  it('opens with a name, a type and a currency', () => {
+    const account = LedgerAccount.open({
+      id: CASH,
+      name: 'cash',
+      type: 'ASSET',
+      currency: GBP,
+    });
+
+    expect(account.id).toBe(CASH);
+    expect(account.name).toBe('cash');
+    expect(account.type).toBe('ASSET');
+    // Currency is part of the account's identity: "cash" in GBP and "cash" in
+    // EUR are different accounts, as migration 0004's unique index enforces.
+    expect(account.currency).toBe(GBP);
+  });
+
   it('rejects a blank name', () => {
     expect(() =>
       LedgerAccount.open({ id: CASH, name: '  ', type: 'ASSET', currency: GBP }),
@@ -78,7 +94,7 @@ describe('LedgerTransaction', () => {
     );
   });
 
-  it('refuses a transaction that nets to zero on both sides', () => {
+  it('accepts entries that individually net to zero, since the transaction does not', () => {
     expect(() =>
       post([
         LedgerEntry.of(CASH, 'DEBIT', money(1)),

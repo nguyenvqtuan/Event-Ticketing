@@ -1,20 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
+import { resetDatabase } from './support/database.js';
 
 /**
  * Proves the constraints actually hold, against a real Postgres.
  *
- * Requires a migrated database:
- *   docker compose up -d db && pnpm --filter @repo/api db:migrate
- *
- * Skips (rather than fails) when no database is reachable, so the unit suite
- * stays runnable offline — but a skip is NOT a pass, and CI must run these.
+ * The database is provisioned by test/support/global-setup.ts (Testcontainers,
+ * migrated with the project's own runner), so there is nothing to skip around:
+ * these tests either run or fail. They used to skip when no database was
+ * reachable, and a skip is not a pass.
  */
-const DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/event_ticketing';
-
 let client: Client;
-let reachable = false;
 
 const HOUR = 60 * 60 * 1000;
 
@@ -55,33 +51,22 @@ const claim = (reservationId: string, seatId: string, range: string, state = 'HE
   );
 
 beforeAll(async () => {
-  client = new Client({ connectionString: DATABASE_URL, connectionTimeoutMillis: 2000 });
+  await resetDatabase();
 
-  try {
-    await client.connect();
-    await client.query('SELECT 1 FROM reservation_items LIMIT 1');
-    reachable = true;
-  } catch {
-    reachable = false;
-  }
+  client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 2000,
+  });
+  await client.connect();
 });
 
 afterAll(async () => {
   if (client) await client.end().catch(() => undefined);
 });
 
-const itDb = (name: string, fn: () => Promise<void>) =>
-  it(name, async () => {
-    if (!reachable) {
-      console.warn(`SKIPPED (no database at ${DATABASE_URL}): ${name}`);
-      return;
-    }
-    await fn();
-  });
-
 describe('Schema constraints (integration)', () => {
   describe('double-booking', () => {
-    itDb('refuses a second live hold on the same seat', async () => {
+    it('refuses a second live hold on the same seat', async () => {
       const { eventId, seatId } = await seedEventWithSeat();
       const expiresAt = new Date(Date.now() + HOUR);
 
@@ -95,7 +80,7 @@ describe('Schema constraints (integration)', () => {
       ).rejects.toMatchObject({ code: '23P01' }); // exclusion_violation
     });
 
-    itDb('ALLOWS a new hold once the previous one has expired — no sweeper needed', async () => {
+    it('ALLOWS a new hold once the previous one has expired — no sweeper needed', async () => {
       const { eventId, seatId } = await seedEventWithSeat();
 
       // A hold that already lapsed. Nothing has updated its row.
@@ -115,7 +100,7 @@ describe('Schema constraints (integration)', () => {
       ).resolves.toBeDefined();
     });
 
-    itDb('refuses any later hold once a seat is SOLD', async () => {
+    it('refuses any later hold once a seat is SOLD', async () => {
       const { eventId, seatId } = await seedEventWithSeat();
 
       const sold = await openReservation(eventId, new Date(Date.now() + HOUR));
@@ -130,7 +115,7 @@ describe('Schema constraints (integration)', () => {
       });
     });
 
-    itDb('frees the seat immediately when a claim is RELEASED', async () => {
+    it('frees the seat immediately when a claim is RELEASED', async () => {
       const { eventId, seatId } = await seedEventWithSeat();
       const expiresAt = new Date(Date.now() + HOUR);
       const range = `[${new Date().toISOString()},${expiresAt.toISOString()})`;
@@ -149,7 +134,7 @@ describe('Schema constraints (integration)', () => {
   });
 
   describe('double-entry ledger', () => {
-    itDb('accepts a balanced transaction', async () => {
+    it('accepts a balanced transaction', async () => {
       const { rows: acct } = await client.query<{ id: string }>(
         `INSERT INTO ledger_accounts (name, type, currency)
          VALUES ($1,'ASSET','GBP'), ($2,'REVENUE','GBP') RETURNING id`,
@@ -169,7 +154,7 @@ describe('Schema constraints (integration)', () => {
       await expect(client.query('COMMIT')).resolves.toBeDefined();
     });
 
-    itDb('REJECTS an unbalanced transaction at COMMIT, not before', async () => {
+    it('REJECTS an unbalanced transaction at COMMIT, not before', async () => {
       const { rows: acct } = await client.query<{ id: string }>(
         `INSERT INTO ledger_accounts (name, type, currency)
          VALUES ($1,'ASSET','GBP'), ($2,'REVENUE','GBP') RETURNING id`,
@@ -194,7 +179,7 @@ describe('Schema constraints (integration)', () => {
   });
 
   describe('domain invariants mirrored in SQL', () => {
-    itDb('rejects an event whose sales close after it starts', async () => {
+    it('rejects an event whose sales close after it starts', async () => {
       const startsAt = new Date(Date.now() + 30 * 24 * HOUR);
       const closesAfter = new Date(startsAt.getTime() + HOUR);
 
@@ -207,7 +192,7 @@ describe('Schema constraints (integration)', () => {
       ).rejects.toMatchObject({ code: '23514' }); // check_violation
     });
 
-    itDb('rejects a duplicate seat code within one event', async () => {
+    it('rejects a duplicate seat code within one event', async () => {
       const { eventId } = await seedEventWithSeat();
 
       await client.query(
@@ -223,7 +208,7 @@ describe('Schema constraints (integration)', () => {
       ).rejects.toMatchObject({ code: '23505' }); // unique_violation
     });
 
-    itDb('rejects a FAILED order with no reason', async () => {
+    it('rejects a FAILED order with no reason', async () => {
       const { eventId } = await seedEventWithSeat();
       const reservationId = await openReservation(eventId, new Date(Date.now() + HOUR));
 
