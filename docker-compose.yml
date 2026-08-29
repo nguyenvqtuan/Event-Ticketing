@@ -1,0 +1,61 @@
+# Local environment that resembles production: the API runs from the same
+# multi-stage image that would ship, not from a dev server.
+#
+#   docker compose up --build
+#   curl localhost:3000/ready
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: event_ticketing
+    ports:
+      # Exposed so host-side tooling (psql, migrations in TICK-5) can reach it.
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -d/-U matter: bare pg_isready reports ready during the init phase,
+      # while the bootstrap server is up but the real one has not restarted yet.
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d event_ticketing']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      # Root context: a pnpm workspace install needs the lockfile and packages.
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      LOG_LEVEL: log
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/event_ticketing
+      CORS_ORIGIN: http://localhost:3001
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        # Not just "started": the API validates config and connects on boot,
+        # so racing Postgres would mean a pointless restart loop.
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

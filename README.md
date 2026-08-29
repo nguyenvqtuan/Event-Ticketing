@@ -3,9 +3,10 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-2** done. The scaffold and a validated configuration layer are
-> in place. There is no database and no domain model yet — those arrive in
-> TICK-3 through TICK-6.
+> Status: **TICK-3** code complete. Scaffold and validated configuration are
+> working and tested; the Docker image and compose stack are written but not
+> yet run against a daemon (see [Running with Docker](#running-with-docker)).
+> There is no schema and no domain model yet — those arrive in TICK-4 to TICK-6.
 
 ## Layout
 
@@ -63,6 +64,57 @@ Append `--filter @repo/api` or `--filter @repo/web` to scope one app.
 
 Turborepo caches `build`, `lint`, `typecheck` and `test`, so repeat runs that
 touch nothing are near-instant.
+
+## Running with Docker
+
+> **Not yet verified on a running daemon.** The Dockerfile and compose file are
+> written and `docker compose config` validates, but the image has not been
+> built and `docker compose up` has not been run — no Docker daemon was
+> available in the environment where this was authored. Expect to shake out
+> small issues on first build. Tracked on TICK-3 (SCRUM-3).
+
+Brings up the API and Postgres together, with the API running from the same
+multi-stage image that would ship — not a dev server:
+
+```bash
+docker compose up --build
+curl localhost:3000/ready   # {"ready":true,"dependencies":{"database":"up"}}
+```
+
+The build context is the **repository root**, not `apps/api` — a pnpm workspace
+install needs the root lockfile and the linked packages:
+
+```bash
+docker build -f apps/api/Dockerfile -t event-ticketing-api .
+```
+
+Notes on the image:
+
+- **Multi-stage.** Dependencies install from manifests alone in a `deps` stage,
+  so that layer caches until a dependency actually changes.
+- **`pnpm deploy --prod --legacy`** resolves workspace links into a real,
+  self-contained `node_modules` and drops devDependencies. The runtime stage is
+  then a plain copy of `node_modules`, `dist` and `package.json` — no pnpm, no
+  TypeScript, no symlinks escaping the image.
+- **Runs as the unprivileged `node` user** that `node:alpine` already provides.
+- **`node` is PID 1** (exec-form `CMD`), so it receives `SIGTERM` directly and
+  shuts the pool down cleanly.
+
+### Health endpoints
+
+The two are deliberately distinct, and compose healthchecks the right one:
+
+| Endpoint     | Meaning                                        | Touches Postgres |
+| ------------ | ---------------------------------------------- | ---------------- |
+| `GET /ping`  | Liveness — is the process up?                  | No               |
+| `GET /ready` | Readiness — can it serve traffic? `503` if not | Yes (`SELECT 1`) |
+
+A failing readiness check should pull an instance out of rotation; a failing
+liveness check should restart it. Conflating them turns a brief database blip
+into a restart loop.
+
+`api` waits for `db` via `condition: service_healthy` — the API validates config
+and connects on boot, so racing Postgres would just produce a restart loop.
 
 ## Configuration
 

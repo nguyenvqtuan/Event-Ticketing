@@ -1,0 +1,20 @@
+# Keep the build context small and prevent host artifacts leaking into layers.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+.git
+.gitignore
+
+# Never bake real secrets into an image; .env.example is documentation only.
+**/.env
+**/.env.*
+!**/.env.example
+
+**/*.log
+**/.DS_Store
+.vscode
+.idea
