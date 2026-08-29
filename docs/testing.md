@@ -2,14 +2,19 @@
 
 The pyramid, and what each layer is allowed to know.
 
-| Layer           | Where                               | Runs against          | Command         |
-| --------------- | ----------------------------------- | --------------------- | --------------- |
-| **Unit**        | `src/**/*.spec.ts`, beside the code | Nothing. Plain fakes. | `pnpm test`     |
-| **Integration** | `apps/api/test/*.e2e-spec.ts`       | A real Postgres       | `pnpm test:e2e` |
-| **Everything**  | —                                   | —                     | `pnpm verify`   |
+| Layer           | Where                               | Runs against           | Command         |
+| --------------- | ----------------------------------- | ---------------------- | --------------- |
+| **Unit**        | `src/**/*.spec.ts`, beside the code | Nothing. Plain fakes.  | `pnpm test`     |
+| **Integration** | `apps/api/test/*.e2e-spec.ts`       | A real Postgres        | `pnpm test:e2e` |
+| **E2E**         | `apps/api/test/journey.e2e-spec.ts` | The app over real HTTP | `pnpm test:e2e` |
+| **Everything**  | —                                   | —                      | `pnpm verify`   |
+
+One scenario sits at the top, not a tier of them: the journey test proves the
+pieces compose, and every error branch is asserted a layer down where it is
+cheaper and reads better.
 
 `pnpm verify` is the single command: lint, typecheck, unit tests with coverage,
-then the integration suite. CI runs exactly that and nothing else, so a green
+then the integration and journey suites. CI runs exactly that and nothing else, so a green
 laptop and a green pipeline mean the same thing.
 
 ## Unit tests: no database, no container, no mocks of our own code
@@ -100,6 +105,34 @@ endpoint lives in the docker CLI's _context_ — so global setup asks the CLI an
 sets `DOCKER_HOST` itself, plus `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` for the
 Ryuk reaper, which mounts the socket from inside the VM. On a stock Linux
 daemon and in CI this is a no-op.
+
+## The journey test
+
+`journey.e2e-spec.ts` is the one scenario that walks the whole flow — create
+event → hold seats → pay → replay the payment → refund — over real HTTP:
+
+```ts
+await app.listen(0); // the OS picks a free port; parallel workers cannot collide
+baseUrl = await app.getUrl();
+const api = () => request(baseUrl);
+```
+
+The feature suites drive `app.getHttpServer()` in memory, which is the faster
+NestJS idiom and right for them. This one crosses a socket, so the real HTTP
+stack is in the picture, and it asserts what only a journey can: that the
+pieces compose. Availability goes 10 available → 2 held → 2 sold → 10
+available again, from the same overview endpoint a client would poll, and the
+replayed payment returns the first order rather than making a second.
+
+Its steps share state and run in order, because step 4 cannot pay for a hold
+step 3 did not take. That is the point of a journey test — anything needing
+isolation belongs in a feature suite, and error branches belong a layer down,
+where they are cheaper and read better.
+
+One assertion is not made over HTTP: no endpoint exposes the ledger, so the
+last step queries it directly to show four entries under the order's reference
+— two for the sale, two reversing them — netting to zero. The sale is still
+there; a refund adds history rather than editing it.
 
 ## Two suites that run out of process
 
