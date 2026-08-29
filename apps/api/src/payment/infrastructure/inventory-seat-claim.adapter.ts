@@ -22,6 +22,10 @@ export class InventorySeatClaimAdapter implements SeatClaimPort {
     private readonly reservations: ReservationRepository,
   ) {}
 
+  async releaseSeats(reservationId: string): Promise<void> {
+    await this.reservations.releaseClaims(reservationId);
+  }
+
   async claimForPayment(reservationId: string, now: Date): Promise<ClaimedSeats> {
     // Locks the row, so the expiry sweeper skips it for the rest of the
     // transaction (SKIP LOCKED — see docs/concurrency.md).

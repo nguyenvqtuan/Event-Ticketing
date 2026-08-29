@@ -9,6 +9,18 @@ import { type Order } from './order.js';
 export interface OrderRepository {
   save(order: Order): Promise<void>;
   findByReservationId(reservationId: string): Promise<Order | null>;
+
+  /** Loads an order and locks its row for the rest of the transaction. */
+  findByIdForUpdate(id: string): Promise<Order | null>;
+
+  /**
+   * Persists a state change, asserting the version that was read.
+   *
+   * This is where the `version` column added in TICK-9 finally earns its
+   * place: refunding is low-contention, so a lock across the read-modify-write
+   * would cost every request to guard against a double-click.
+   */
+  updateState(order: Order): Promise<void>;
 }
 
 export interface LedgerRepository {
@@ -60,6 +72,15 @@ export interface SeatClaimPort {
    * caller's transaction so it rolls back with everything else.
    */
   claimForPayment(reservationId: string, now: Date): Promise<ClaimedSeats>;
+
+  /**
+   * Releases a reservation's seats after a refund.
+   *
+   * Availability is derived from live claims, so marking them RELEASED drops
+   * them out of the exclusion constraint and the seats are sellable again
+   * immediately — no separate "make available" step exists, or is needed.
+   */
+  releaseSeats(reservationId: string): Promise<void>;
 }
 
 export const ORDER_REPOSITORY = Symbol('ORDER_REPOSITORY');
