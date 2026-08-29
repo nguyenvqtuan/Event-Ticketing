@@ -1,0 +1,12 @@
+{
+  "extends": "@repo/tsconfig/nest.json",
+  "compilerOptions": {
+    // Spans src/ + test/ — this config drives typecheck, lint and jest only.
+    // Emit uses tsconfig.build.json, which narrows rootDir to ./src.
+    "rootDir": ".",
+    "outDir": "./dist",
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "test/**/*", "eslint.config.mjs", "jest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
