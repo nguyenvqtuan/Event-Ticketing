@@ -3,14 +3,15 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-4** done. Scaffold, validated configuration and the domain
-> model are working and tested. The Docker image and compose stack are written
-> but not yet run against a daemon (see
-> [Running with Docker](#running-with-docker)). There is no database yet —
-> that is TICK-5.
+> Status: **TICK-5** done. Scaffold, configuration, domain model, Docker image
+> and the Postgres schema are all working and verified end to end — the image
+> builds, `docker compose up` runs the API against Postgres, and the migrations
+> apply and roll back on a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
+[`docs/db.md`](docs/db.md) — the schema, the double-booking constraint, and the
+expand/contract migration strategy.
 
 ## Layout
 
@@ -28,6 +29,7 @@ packages/
   eslint-config/          shared ESLint flat configs (base / nest / next)
 docs/
   domain.md               the domain model
+  db.md                   schema, constraints, migration strategy
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share
@@ -73,16 +75,20 @@ Append `--filter @repo/api` or `--filter @repo/web` to scope one app.
 | `pnpm test:e2e`  | API end-to-end tests (Jest + supertest) |
 | `pnpm format`    | Rewrite files with Prettier             |
 
+Database commands are API-scoped and need `DATABASE_URL`:
+
+| Command                               | What it does                                 |
+| ------------------------------------- | -------------------------------------------- |
+| `pnpm --filter @repo/api db:migrate`  | Apply pending migrations                     |
+| `pnpm --filter @repo/api db:rollback` | Revert the most recent                       |
+| `pnpm --filter @repo/api db:status`   | Show applied vs pending                      |
+| `pnpm --filter @repo/api db:reset`    | up → down all → up (exercises the down path) |
+| `pnpm --filter @repo/api db:generate` | Regenerate SQL from `schema.ts`              |
+
 Turborepo caches `build`, `lint`, `typecheck` and `test`, so repeat runs that
 touch nothing are near-instant.
 
 ## Running with Docker
-
-> **Not yet verified on a running daemon.** The Dockerfile and compose file are
-> written and `docker compose config` validates, but the image has not been
-> built and `docker compose up` has not been run — no Docker daemon was
-> available in the environment where this was authored. Expect to shake out
-> small issues on first build. Tracked on TICK-3 (SCRUM-3).
 
 Brings up the API and Postgres together, with the API running from the same
 multi-stage image that would ship — not a dev server:
@@ -98,6 +104,14 @@ install needs the root lockfile and the linked packages:
 ```bash
 docker build -f apps/api/Dockerfile -t event-ticketing-api .
 ```
+
+**Requires BuildKit** (`docker buildx`). The `deps` stage uses a
+`--mount=type=cache` for the pnpm store, which the legacy builder cannot parse —
+it fails with _"the --mount option requires BuildKit"_. Compose uses BuildKit by
+default; a bare `docker build` on an older setup may need `DOCKER_BUILDKIT=1`.
+
+Runtime image is **303 MB** on `node:24-alpine`, containing no TypeScript
+toolchain and no dev dependencies.
 
 Notes on the image:
 

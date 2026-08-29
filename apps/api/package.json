@@ -12,13 +12,19 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
-    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config test/jest-e2e.json"
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config test/jest-e2e.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --experimental-strip-types scripts/migrate.ts up",
+    "db:rollback": "node --experimental-strip-types scripts/migrate.ts down",
+    "db:status": "node --experimental-strip-types scripts/migrate.ts status",
+    "db:reset": "node --experimental-strip-types scripts/migrate.ts up && node --experimental-strip-types scripts/migrate.ts down all && node --experimental-strip-types scripts/migrate.ts up"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
+    "drizzle-orm": "^0.45.2",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
@@ -35,6 +41,7 @@
     "@types/node": "^26.4.0",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",
     "jest": "^30.5.0",
     "supertest": "^7.2.2",
