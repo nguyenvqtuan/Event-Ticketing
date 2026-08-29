@@ -7,6 +7,7 @@ packages:
 #   unrs-resolver    — native resolver behind eslint-import-resolver-typescript
 allowBuilds:
   '@parcel/watcher': true
+  esbuild: true # bundler behind drizzle-kit's CLI
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
