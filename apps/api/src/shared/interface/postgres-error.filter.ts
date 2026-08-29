@@ -1,20 +1,11 @@
 import { type ArgumentsHost, Catch, HttpStatus, Logger } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import { type Response } from 'express';
-
-/** Postgres SQLSTATEs this application treats as caller-visible conflicts. */
-const EXCLUSION_VIOLATION = '23P01';
-const UNIQUE_VIOLATION = '23505';
-
-interface PostgresError extends Error {
-  code?: string;
-  constraint?: string;
-}
-
-const isConflict = (error: unknown): error is PostgresError =>
-  error instanceof Error &&
-  ((error as PostgresError).code === EXCLUSION_VIOLATION ||
-    (error as PostgresError).code === UNIQUE_VIOLATION);
+import {
+  EXCLUSION_VIOLATION,
+  findPostgresError,
+  UNIQUE_VIOLATION,
+} from '../infrastructure/database/postgres-error.js';
 
 /**
  * Backstop for the double-booking constraint.
@@ -36,7 +27,11 @@ export class PostgresErrorFilter extends BaseExceptionFilter {
   private readonly logger = new Logger(PostgresErrorFilter.name);
 
   override catch(error: unknown, host: ArgumentsHost): void {
-    if (!isConflict(error)) {
+    // The SQLSTATE may be nested: Drizzle wraps driver errors and puts the
+    // real one on `cause`, so checking the top level alone misses them.
+    const pg = findPostgresError(error);
+
+    if (!pg || (pg.code !== EXCLUSION_VIOLATION && pg.code !== UNIQUE_VIOLATION)) {
       // Everything else keeps Nest's default handling, bodies intact.
       super.catch(error, host);
       return;
@@ -45,7 +40,7 @@ export class PostgresErrorFilter extends BaseExceptionFilter {
     // Worth a warning: reaching here means the lock was bypassed, so the
     // constraint did work the application should have done first.
     this.logger.warn(
-      `Constraint ${error.constraint ?? '(unknown)'} rejected a write (${error.code}) — ` +
+      `Constraint ${pg.constraint ?? '(unknown)'} rejected a write (${pg.code}) — ` +
         'the exclusion constraint caught a conflict the lock did not',
     );
 

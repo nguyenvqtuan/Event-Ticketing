@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseContext } from '../../shared/infrastructure/database/database.module.js';
 import { reservationItems, reservations } from '../../shared/infrastructure/database/schema.js';
-import { ConcurrentModification } from '../../shared/domain/domain-error.js';
+import { ConcurrentModification, InvariantViolation } from '../../shared/domain/domain-error.js';
+import { Money } from '../../shared/domain/money.js';
 import { Reservation, type ReservationId } from '../domain/reservation.js';
 import { type ReservationRepository } from '../domain/reservation-repository.port.js';
 
@@ -166,6 +167,30 @@ export class DrizzleReservationRepository implements ReservationRepository {
     if (locked.rows.length === 0) return null;
 
     return this.findById(id);
+  }
+
+  async totalFor(id: ReservationId): Promise<Money> {
+    const result = await this.context.db.execute<{ total: number; currency: string }>(sql`
+      SELECT COALESCE(SUM(s.price_minor), 0)::int AS total,
+             MIN(s.currency)                      AS currency,
+             COUNT(DISTINCT s.currency)::int      AS currencies
+        FROM reservation_items ri
+        JOIN seats s ON s.id = ri.seat_id
+       WHERE ri.reservation_id = ${id}
+    `);
+
+    const row = result.rows[0] as
+      { total: number; currency: string | null; currencies: number } | undefined;
+
+    if (!row || row.currency === null) {
+      throw new InvariantViolation(`Reservation ${id} has no seats to price`);
+    }
+    // Money refuses to mix currencies, and so should a reservation.
+    if (row.currencies > 1) {
+      throw new InvariantViolation(`Reservation ${id} spans more than one currency`);
+    }
+
+    return Money.of(Number(row.total), row.currency);
   }
 
   async extendClaimsIndefinitely(id: ReservationId): Promise<void> {

@@ -15,6 +15,7 @@ import {
 import { EventNotFound } from '../../inventory/application/get-event-overview.use-case.js';
 import { SalesClosed, SeatsUnavailable } from '../../inventory/application/hold-seats.use-case.js';
 import { ReservationNotFound } from '../../inventory/application/cancel-reservation.use-case.js';
+import { AmountMismatch } from '../../inventory/application/pay-reservation.use-case.js';
 
 /**
  * Translates domain errors into HTTP status codes.
@@ -55,6 +56,10 @@ export class DomainErrorFilter implements ExceptionFilter<DomainError> {
     // Someone else changed the row between our read and our write. 409 tells
     // the caller to re-read and retry — the write was refused, not lost.
     if (error instanceof ConcurrentModification) return HttpStatus.CONFLICT;
+
+    // The amount offered does not match the seats' price. 422: the request is
+    // well-formed and the schema accepted it, but it cannot be processed.
+    if (error instanceof AmountMismatch) return HttpStatus.UNPROCESSABLE_ENTITY;
 
     // Lost a race for a seat, or asked for one that is already sold. The
     // request was valid; reality moved.

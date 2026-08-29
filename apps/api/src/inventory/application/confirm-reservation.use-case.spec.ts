@@ -1,4 +1,5 @@
 import { InvalidStateTransition } from '../../shared/domain/domain-error.js';
+import { Money } from '../../shared/domain/money.js';
 import { type TransactionRunner } from '../../shared/domain/transaction-runner.port.js';
 import { Reservation } from '../domain/reservation.js';
 import { type ReservationRepository } from '../domain/reservation-repository.port.js';
@@ -43,6 +44,9 @@ class FakeReservations implements ReservationRepository {
   extendClaimsIndefinitely(id: string) {
     this.extendedFor = id;
     return Promise.resolve();
+  }
+  totalFor() {
+    return Promise.resolve(Money.of(5_000, 'GBP'));
   }
   expireLapsed(limit: number) {
     this.expireLimit = limit;
