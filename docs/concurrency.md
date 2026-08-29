@@ -283,6 +283,73 @@ would never notice. That is a double-sell.
 > which an unpaid `CONFIRMED` reservation is released — which belongs with the
 > payment flow, not here. Flagged rather than guessed at.
 
+## Idempotent payments
+
+A client whose payment request times out cannot tell whether it charged. Its
+only safe move is to retry — so the retry must not charge again, and must
+return the _original_ answer. Returning a fresh `409` would be just as wrong:
+the client cannot distinguish that from a genuine failure.
+
+`POST /reservations/:id/pay` therefore **requires** an `Idempotency-Key`
+header. Optional idempotency is fine for creating an event, where a duplicate
+is merely annoying; for money it is the only thing standing between a network
+blip and a double charge, so a caller must not be able to opt out.
+
+Three properties carry the guarantee.
+
+### 1. The key is written in the same transaction as the side effect
+
+The interceptor opens the transaction; the use case's own `transaction.run()`
+joins it via `AsyncLocalStorage` rather than nesting. So the key row and the
+payment either both commit or both roll back.
+
+Writing the key in a _separate_ transaction leaves a window where the side
+effect committed but the record of it did not — and the next retry runs the
+side effect again. That window is small and entirely fatal.
+
+A useful consequence: because a failed payment rolls back its key row too, the
+same key can be reused for a corrected request. Tested.
+
+### 2. A concurrent duplicate waits, then replays
+
+The insert is a plain `INSERT`, deliberately not `ON CONFLICT DO NOTHING`.
+Postgres blocks a duplicate key until the holding transaction commits or
+aborts, which makes the unique index the serialisation point:
+
+```
+T1  INSERT key ──── side effect ──── UPDATE response ──── COMMIT
+T2  INSERT key ─────────────(blocked)──────────────────► 23505 → replay T1's response
+```
+
+The loser does not guess. It learns the outcome and returns the winner's stored
+response. If the winner rolled back, the loser's insert succeeds and it becomes
+the winner — no special case needed.
+
+`ON CONFLICT DO NOTHING` would return immediately with nothing to replay, and
+the loser would have to poll or fail.
+
+### 3. The request is hashed
+
+Method, path and body are hashed into `request_hash`. Reusing a key with a
+different body returns `409` without processing — that is a client bug, and
+replaying the old response would hide it.
+
+### Reading the SQLSTATE
+
+Drizzle rethrows driver errors wrapped in its own `Error`, putting the real one
+on `cause`. Checking `error.code` at the top level silently misses every
+constraint violation — which is exactly what happened here: the interceptor
+stopped recognising duplicate keys and returned `500` instead of replaying.
+`findPostgresError()` walks the cause chain, and both the interceptor and the
+constraint backstop filter use it.
+
+### One wrinkle: jsonb does not preserve key order
+
+Responses are stored in a `jsonb` column, so a replayed body is _deeply equal_
+to the original but may serialise with its keys in a different order. Anything
+comparing responses byte-for-byte will see a false difference. Clients should
+not depend on key order, and neither should tests.
+
 ## Scope limits
 
 - **Lock contention is per seat row.** Disjoint seats proceed fully in

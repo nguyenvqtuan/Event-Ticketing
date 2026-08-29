@@ -20,6 +20,7 @@ import {
 import { CancelReservationUseCase } from './application/cancel-reservation.use-case.js';
 import { ConfirmReservationUseCase } from './application/confirm-reservation.use-case.js';
 import { ExpireReservationsUseCase } from './application/expire-reservations.use-case.js';
+import { PayReservationUseCase } from './application/pay-reservation.use-case.js';
 import { HoldSeatsUseCase } from './application/hold-seats.use-case.js';
 import { DrizzleEventRepository } from './infrastructure/drizzle-event.repository.js';
 import { DrizzleReservationRepository } from './infrastructure/drizzle-reservation.repository.js';
@@ -59,6 +60,12 @@ import { ReservationsController } from './interface/reservations.controller.js';
       provide: ConfirmReservationUseCase,
       useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
         new ConfirmReservationUseCase(reservations, transaction),
+      inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
+    },
+    {
+      provide: PayReservationUseCase,
+      useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
+        new PayReservationUseCase(reservations, transaction),
       inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
     },
     {

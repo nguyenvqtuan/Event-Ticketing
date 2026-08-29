@@ -1,3 +1,4 @@
+import { type Money } from '../../shared/domain/money.js';
 import { type Reservation, type ReservationId } from './reservation.js';
 
 export interface ReservationRepository {
@@ -55,6 +56,15 @@ export interface ReservationRepository {
    * PENDING rows, would not even notice. That is a double-sell.
    */
   extendClaimsIndefinitely(id: ReservationId): Promise<void>;
+
+  /**
+   * What the reservation's seats cost, summed from the seat catalogue.
+   *
+   * Read at payment time rather than stored on the hold: the price a customer
+   * pays must be the one in effect now, and TICK-12 will freeze it onto the
+   * order lines at that moment.
+   */
+  totalFor(id: ReservationId): Promise<Money>;
 }
 
 export const RESERVATION_REPOSITORY = Symbol('RESERVATION_REPOSITORY');
