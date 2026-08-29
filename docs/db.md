@@ -302,10 +302,10 @@ a chart of accounts that invents entries on demand cannot be reconciled.
 A refund never touches the original entries — the append-only triggers forbid
 it, and so does the code. It posts a second, mirror-image transaction:
 
-| Transaction | Reference | cash | ticket_revenue |
-| --- | --- | --- | --- |
-| Sale | `order:<id>:sale` | `DEBIT` | `CREDIT` |
-| Refund | `order:<id>:refund` | `CREDIT` | `DEBIT` |
+| Transaction | Reference           | cash     | ticket_revenue |
+| ----------- | ------------------- | -------- | -------------- |
+| Sale        | `order:<id>:sale`   | `DEBIT`  | `CREDIT`       |
+| Refund      | `order:<id>:refund` | `CREDIT` | `DEBIT`        |
 
 The two net to zero **per account**, and both stay in the history, so "what
 happened to this order?" is answerable forever. An in-place edit would net to
@@ -315,7 +315,7 @@ Both share the `order:<id>` prefix, so a single query nets everything for an
 order without needing to know which transactions exist.
 
 Seats return to sale by marking their claims `RELEASED`. Because availability
-is derived from live claims, that *is* the release — there is no separate
+is derived from live claims, that _is_ the release — there is no separate
 "make available" step to forget.
 
 ### A rollback may relax a constraint, never re-tighten one

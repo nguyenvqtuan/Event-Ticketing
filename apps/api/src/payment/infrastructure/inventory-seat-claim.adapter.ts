@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Money } from '../../shared/domain/money.js';
 import {
   RESERVATION_REPOSITORY,
@@ -17,6 +17,8 @@ import { type ClaimedSeats, type SeatClaimPort } from '../domain/payment-reposit
  */
 @Injectable()
 export class InventorySeatClaimAdapter implements SeatClaimPort {
+  private readonly logger = new Logger(InventorySeatClaimAdapter.name);
+
   constructor(
     @Inject(RESERVATION_REPOSITORY)
     private readonly reservations: ReservationRepository,
@@ -46,6 +48,10 @@ export class InventorySeatClaimAdapter implements SeatClaimPort {
     await this.reservations.markClaimsSold(reservationId);
 
     const lines = await this.reservations.pricedSeatsFor(reservationId);
+
+    // Deliberately deep: controller -> CheckoutUseCase -> port -> adapter.
+    // Nothing passed a correlation id down here, yet this line carries one.
+    this.logger.log(`Claimed ${lines.length} seat(s) for reservation ${reservationId}`);
 
     return {
       reservationId,

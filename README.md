@@ -3,11 +3,11 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-13** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-14** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
 > flow, optimistic locking, reservation expiry, idempotent payments and the
-> double-entry ledger and refunds-by-reversal are all working and verified end
-> to end against a live database.
+> double-entry ledger, refunds-by-reversal and structured logging are all
+> working and verified end to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -192,6 +192,41 @@ into a restart loop.
 
 `api` waits for `db` via `condition: service_healthy` — the API validates config
 and connects on boot, so racing Postgres would just produce a restart loop.
+
+## Logging
+
+Structured JSON on stdout, one object per line, with a correlation ID on
+**every** line:
+
+```json
+{
+  "level": 30,
+  "time": 1787999823547,
+  "correlationId": "demo-correlation-123",
+  "req": { "method": "POST", "path": "/events" },
+  "res": { "status": 400 },
+  "latencyMs": 5,
+  "msg": "request completed"
+}
+```
+
+- **Correlation ID** comes from `X-Correlation-Id` or `X-Request-Id` if the
+  caller sends one, otherwise it is generated. It is echoed back on the
+  response so a client can quote it in a bug report.
+- It propagates through `AsyncLocalStorage`, so a log emitted in a repository
+  four calls below the controller carries it without anyone passing it down.
+  The same mechanism carries the database transaction.
+- **Request bodies are never logged.** Only an allow-list of fields is
+  serialised, so an endpoint that later accepts card details cannot leak them
+  by default. `redact` is a second line of defence, not the first.
+- The idempotency key **is** logged — it is the most useful field when tracing
+  a retry.
+- Verbosity follows `LOG_LEVEL` (see below); `/ping` and `/ready` are excluded
+  so health checks do not drown the log.
+
+`nestjs-pino` is the usual choice, but it ships CommonJS and `require()`s
+`@nestjs/common`, which is ESM-only from NestJS 12 — it fails at import. pino
+and pino-http are used directly instead.
 
 ## Configuration
 
