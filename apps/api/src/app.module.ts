@@ -1,14 +1,22 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { AppConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { PaymentModule } from './payment/payment.module.js';
+import { DatabaseModule } from './shared/infrastructure/database/database.module.js';
+import { DomainErrorFilter } from './shared/interface/domain-error.filter.js';
 
 /**
  * Root module. Feature modules map to bounded contexts — see docs/domain.md
  * for what each one owns and why the boundary falls where it does.
  */
 @Module({
-  imports: [AppConfigModule, HealthModule, InventoryModule, PaymentModule],
+  imports: [AppConfigModule, DatabaseModule, HealthModule, InventoryModule, PaymentModule],
+  providers: [
+    // Registered globally so every controller maps domain errors to status
+    // codes the same way, instead of repeating try/catch.
+    { provide: APP_FILTER, useClass: DomainErrorFilter },
+  ],
 })
 export class AppModule {}

@@ -3,9 +3,9 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-6** done. Scaffold, configuration, domain model, Docker image,
-> Postgres schema and the index audit are all working and verified end to end
-> against a live database.
+> Status: **TICK-7** done. Scaffold, configuration, domain model, Docker image,
+> Postgres schema, index audit and the first HTTP endpoints are all working and
+> verified end to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -128,6 +128,26 @@ Notes on the image:
 - **Runs as the unprivileged `node` user** that `node:alpine` already provides.
 - **`node` is PID 1** (exec-form `CMD`), so it receives `SIGTERM` directly and
   shuts the pool down cleanly.
+
+### API endpoints
+
+| Endpoint                                 | Purpose                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `POST /events`                           | Create an event and generate its seat inventory, in one transaction |
+| `GET /events/:id`                        | Event details plus derived seat counts (available/held/sold)        |
+| `GET /events/:id/seats?status=AVAILABLE` | Seats filtered by derived availability, paginated                   |
+
+`POST /events` accepts an optional `Idempotency-Key` header. Repeating a request
+with the same key replays the stored response instead of creating a second
+event; reusing a key with a different body returns `409`.
+
+Seat generation is separately idempotent: seat codes are unique per event, so
+re-generating inserts only what is missing (`ON CONFLICT DO NOTHING`). The two
+mechanisms cover different failures — a retried request that would create a
+duplicate _event_, and a re-run generation that would create duplicate _seats_.
+
+Request bodies are validated with Zod; invalid payloads return `400` listing
+every offending field at once.
 
 ### Health endpoints
 
