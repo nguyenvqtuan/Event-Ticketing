@@ -3,20 +3,31 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-3** code complete. Scaffold and validated configuration are
-> working and tested; the Docker image and compose stack are written but not
-> yet run against a daemon (see [Running with Docker](#running-with-docker)).
-> There is no schema and no domain model yet — those arrive in TICK-4 to TICK-6.
+> Status: **TICK-4** done. Scaffold, validated configuration and the domain
+> model are working and tested. The Docker image and compose stack are written
+> but not yet run against a daemon (see
+> [Running with Docker](#running-with-docker)). There is no database yet —
+> that is TICK-5.
+
+**Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
+bounded contexts and the Reservation/Order state machines.
 
 ## Layout
 
 ```
 apps/
-  api/     NestJS API      (port 3000)
-  web/     Next.js client  (port 3001)
+  api/                    NestJS API      (port 3000)
+    src/inventory/          bounded context: events, seats, reservations
+    src/payment/            bounded context: orders, double-entry ledger
+    src/shared/domain/      shared kernel: Money, DomainError
+    src/health/             liveness + readiness
+    src/config/             validated configuration
+  web/                    Next.js client  (port 3001)
 packages/
-  tsconfig/        shared TypeScript configs (base / nest / next)
-  eslint-config/   shared ESLint flat configs (base / nest / next)
+  tsconfig/               shared TypeScript configs (base / nest / next)
+  eslint-config/          shared ESLint flat configs (base / nest / next)
+docs/
+  domain.md               the domain model
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share
@@ -189,8 +200,8 @@ Two consequences worth noting:
 You can check the rule holds at any time; this should print nothing:
 
 ```bash
-grep -rE "from '(@nestjs|typeorm|prisma|drizzle|pg)" \
-  apps/api/src/**/domain apps/api/src/**/application
+grep -rE "from '(@nestjs|typeorm|prisma|drizzle|pg)" apps/api/src \
+  | grep -E "/(domain|application)/"
 ```
 
 ## Toolchain notes
