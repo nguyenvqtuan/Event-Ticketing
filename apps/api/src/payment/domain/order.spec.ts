@@ -109,4 +109,50 @@ describe('Order', () => {
     expect(order.lines[0]!.price.equals(Money.of(5_000, GBP))).toBe(true);
     expect(order.total.equals(Money.of(5_000, GBP))).toBe(true);
   });
+
+  /**
+   * Same reasoning as Reservation: a stored order is loaded as it stands, not
+   * walked forward through markPaid()/refund() to reach its state.
+   */
+  describe('rehydration', () => {
+    const stored = (overrides: Partial<Parameters<typeof Order.rehydrate>[0]> = {}) =>
+      Order.rehydrate({
+        id: 'ord-1',
+        reservationId: 'res-1',
+        lines: [line('seat-1', 5_000)],
+        total: Money.of(5_000, GBP),
+        placedAt: NOW,
+        state: 'PAID',
+        version: 4,
+        ...overrides,
+      });
+
+    it('restores a paid order as it stands', () => {
+      const order = stored();
+
+      expect(order.state).toBe('PAID');
+      expect(order.version).toBe(4);
+      expect(order.total.equals(Money.of(5_000, GBP))).toBe(true);
+    });
+
+    it('restores the reason a stored order failed', () => {
+      const order = stored({ state: 'FAILED', failureReason: 'card declined' });
+
+      expect(order.state).toBe('FAILED');
+      expect(order.reasonForFailure).toBe('card declined');
+    });
+
+    it('rejects a stored order with no lines', () => {
+      expect(() => stored({ lines: [] })).toThrow(InvariantViolation);
+    });
+
+    it('copies its lines, so the caller cannot append after loading', () => {
+      const lines = [line('seat-1', 5_000)];
+      const order = stored({ lines });
+
+      lines.push(line('seat-2', 1));
+
+      expect(order.lines).toHaveLength(1);
+    });
+  });
 });

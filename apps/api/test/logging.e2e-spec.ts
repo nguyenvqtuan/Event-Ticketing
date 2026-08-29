@@ -5,6 +5,7 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import {
   CORRELATION_HEADER,
   createPinoLogger,
@@ -47,6 +48,12 @@ describe('Structured logging (e2e)', () => {
       }
       callback();
     },
+  });
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
   });
 
   beforeAll(async () => {

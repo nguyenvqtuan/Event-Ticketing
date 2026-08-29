@@ -4,6 +4,7 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 import { DatabaseContext } from '../src/shared/infrastructure/database/database.module.js';
 import { ExpireReservationsUseCase } from '../src/inventory/application/expire-reservations.use-case.js';
 
@@ -73,6 +74,13 @@ describe('Reservation expiry (e2e)', () => {
     );
     return Number(r.rows[0]?.n ?? 0);
   };
+
+  // Between tests, not just suites: the sweeper claims every lapsed
+  // reservation in the database, so a leftover row from the previous test
+  // would be swept into this one's count.
+  beforeEach(async () => {
+    await resetDatabase();
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();

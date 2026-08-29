@@ -4,11 +4,12 @@ import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { resetDatabase } from './support/database.js';
 
 /**
- * Integration tests for TICK-7's endpoints, against a real Postgres.
- *
- *   docker compose up -d db && pnpm --filter @repo/api db:migrate
+ * Integration tests for TICK-7's endpoints, against a real Postgres —
+ * provisioned and migrated by test/support/global-setup.ts, so `pnpm test:e2e`
+ * is the whole setup.
  */
 describe('Events endpoints (e2e)', () => {
   let app: INestApplication;
@@ -22,6 +23,12 @@ describe('Events endpoints (e2e)', () => {
     priceMinor: 5000,
     currency: 'GBP',
     ...overrides,
+  });
+
+  // A clean database per suite: worker databases are reused across the
+  // suites a worker runs, and one suite's rows are another's noise.
+  beforeAll(async () => {
+    await resetDatabase();
   });
 
   beforeAll(async () => {

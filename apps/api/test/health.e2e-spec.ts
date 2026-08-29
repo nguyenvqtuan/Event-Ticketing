@@ -12,10 +12,8 @@ import { resolve } from 'node:path';
  * rather than by substituting a fake probe. What an orchestrator would see is
  * exactly what these assert.
  *
- * Requires `pnpm build` (turbo runs it first via the task graph) and, for the
- * ready case, a migrated database:
- *
- *   docker compose up -d db && pnpm --filter @repo/api db:migrate
+ * Requires `pnpm build` (turbo runs it first via the task graph); the database
+ * comes from test/support/global-setup.ts, already migrated.
  */
 const MAIN = resolve(process.cwd(), 'dist/main.js');
 

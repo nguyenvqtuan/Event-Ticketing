@@ -1,0 +1,50 @@
+# One command, the same one used locally: `pnpm verify`.
+#
+# It runs lint, typecheck, the unit suite with coverage, and the integration
+# suite. The integration suite provisions its own Postgres through
+# Testcontainers, so there is no service container here and no step that
+# migrates a database — the harness does both, exactly as it does on a laptop.
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  # A new push supersedes the run in progress for the same ref.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # ubuntu-latest ships a running Docker daemon at the default socket, which
+    # is all Testcontainers needs.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable pnpm
+        # The version comes from the `packageManager` field, so it cannot drift
+        # from what developers run.
+        run: corepack enable pnpm
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm verify
+
+      - name: Upload coverage
+        # Also on failure: the report is most useful when something went wrong.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: apps/api/coverage/
+          if-no-files-found: warn
