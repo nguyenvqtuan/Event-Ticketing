@@ -18,10 +18,13 @@ import {
   type ReservationRepository,
 } from './domain/reservation-repository.port.js';
 import { CancelReservationUseCase } from './application/cancel-reservation.use-case.js';
+import { ConfirmReservationUseCase } from './application/confirm-reservation.use-case.js';
+import { ExpireReservationsUseCase } from './application/expire-reservations.use-case.js';
 import { HoldSeatsUseCase } from './application/hold-seats.use-case.js';
 import { DrizzleEventRepository } from './infrastructure/drizzle-event.repository.js';
 import { DrizzleReservationRepository } from './infrastructure/drizzle-reservation.repository.js';
 import { DrizzleSeatRepository } from './infrastructure/drizzle-seat.repository.js';
+import { ReservationSweeper } from './infrastructure/reservation-sweeper.job.js';
 import { EventsController } from './interface/events.controller.js';
 import { ReservationsController } from './interface/reservations.controller.js';
 
@@ -50,6 +53,19 @@ import { ReservationsController } from './interface/reservations.controller.js';
         transaction: TransactionRunner,
       ) => new HoldSeatsUseCase(events, seats, reservations, transaction),
       inject: [EVENT_REPOSITORY, SEAT_REPOSITORY, RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
+    },
+    ReservationSweeper,
+    {
+      provide: ConfirmReservationUseCase,
+      useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
+        new ConfirmReservationUseCase(reservations, transaction),
+      inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
+    },
+    {
+      provide: ExpireReservationsUseCase,
+      useFactory: (reservations: ReservationRepository, transaction: TransactionRunner) =>
+        new ExpireReservationsUseCase(reservations, transaction),
+      inject: [RESERVATION_REPOSITORY, TRANSACTION_RUNNER],
     },
     {
       provide: CancelReservationUseCase,

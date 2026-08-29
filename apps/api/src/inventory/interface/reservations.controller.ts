@@ -15,6 +15,7 @@ import { AppConfigService } from '../../config/app-config.service.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { ZodValidationPipe } from '../../shared/interface/zod-validation.pipe.js';
 import { CancelReservationUseCase } from '../application/cancel-reservation.use-case.js';
+import { ConfirmReservationUseCase } from '../application/confirm-reservation.use-case.js';
 import { HoldSeatsUseCase } from '../application/hold-seats.use-case.js';
 import {
   RESERVATION_REPOSITORY,
@@ -31,6 +32,7 @@ export class ReservationsController {
   constructor(
     private readonly holdSeats: HoldSeatsUseCase,
     private readonly cancelReservation: CancelReservationUseCase,
+    private readonly confirmReservation: ConfirmReservationUseCase,
     // Injected by token: the interface has no runtime representation.
     @Inject(RESERVATION_REPOSITORY)
     private readonly reservations: ReservationRepository,
@@ -59,6 +61,22 @@ export class ReservationsController {
       state: reservation.state,
       createdAt: reservation.createdAt,
       expiresAt: reservation.expiresAt,
+    };
+  }
+
+  /**
+   * Confirms a hold — the step a payment begins with. Rejected with 409 once
+   * the TTL has lapsed, even if nothing has marked the hold expired yet.
+   */
+  @Post(':id/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirm(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
+    const reservation = await this.confirmReservation.execute(id, new Date());
+
+    return {
+      id: reservation.id,
+      state: reservation.state,
+      seatIds: reservation.seatIds,
     };
   }
 
