@@ -70,6 +70,9 @@ class FakeReservations implements ReservationRepository {
   markClaimsSold() {
     return Promise.resolve();
   }
+  releaseClaims() {
+    return Promise.resolve();
+  }
   expireLapsed() {
     return Promise.resolve(0);
   }

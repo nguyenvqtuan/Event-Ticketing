@@ -16,6 +16,7 @@ import { EventNotFound } from '../../inventory/application/get-event-overview.us
 import { SalesClosed, SeatsUnavailable } from '../../inventory/application/hold-seats.use-case.js';
 import { ReservationNotFound } from '../../inventory/application/cancel-reservation.use-case.js';
 import { AmountMismatch } from '../../payment/application/checkout.use-case.js';
+import { OrderNotFound } from '../../payment/application/refund-order.use-case.js';
 
 /**
  * Translates domain errors into HTTP status codes.
@@ -52,6 +53,7 @@ export class DomainErrorFilter implements ExceptionFilter<DomainError> {
   private statusFor(error: DomainError): number {
     if (error instanceof EventNotFound) return HttpStatus.NOT_FOUND;
     if (error instanceof ReservationNotFound) return HttpStatus.NOT_FOUND;
+    if (error instanceof OrderNotFound) return HttpStatus.NOT_FOUND;
 
     // Someone else changed the row between our read and our write. 409 tells
     // the caller to re-read and retry — the write was refused, not lost.

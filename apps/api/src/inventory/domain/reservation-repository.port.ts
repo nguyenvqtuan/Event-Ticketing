@@ -80,6 +80,14 @@ export interface ReservationRepository {
    * only looks at PENDING reservations, so it would never notice.
    */
   markClaimsSold(id: ReservationId): Promise<void>;
+
+  /**
+   * Releases a reservation's claims, whatever state they are in.
+   *
+   * Used by a refund: a SOLD claim never lapses on its own, so returning the
+   * seat to sale requires dropping the claim out of the exclusion constraint.
+   */
+  releaseClaims(id: ReservationId): Promise<void>;
 }
 
 export const RESERVATION_REPOSITORY = Symbol('RESERVATION_REPOSITORY');

@@ -34,7 +34,46 @@ export class Order {
     readonly placedAt: Date,
     private currentState: OrderState,
     private failureReason?: string,
+    /**
+     * Optimistic-concurrency counter, not a business concept — see
+     * Reservation for the same pattern and the reasoning.
+     */
+    readonly version: number = 0,
   ) {}
+
+  /**
+   * Reconstitutes an order from storage.
+   *
+   * Separate from `place()` because a stored order may be in any state.
+   * Walking it forward through markPaid()/refund() to reach that state, as an
+   * earlier version did, replays transitions that already happened and would
+   * reject any state the current rules no longer allow reaching.
+   */
+  static rehydrate(params: {
+    id: OrderId;
+    reservationId: string;
+    lines: readonly OrderLine[];
+    total: Money;
+    placedAt: Date;
+    state: OrderState;
+    failureReason?: string;
+    version: number;
+  }): Order {
+    if (params.lines.length === 0) {
+      throw new InvariantViolation(`Stored order ${params.id} has no lines`);
+    }
+
+    return new Order(
+      params.id,
+      params.reservationId,
+      [...params.lines],
+      params.total,
+      params.placedAt,
+      params.state,
+      params.failureReason,
+      params.version,
+    );
+  }
 
   /** Placed from a CONFIRMED reservation; payment has not been taken yet. */
   static place(params: {

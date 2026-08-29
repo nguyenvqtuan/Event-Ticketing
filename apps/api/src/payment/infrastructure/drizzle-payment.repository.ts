@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { InvariantViolation } from '../../shared/domain/domain-error.js';
+import { and, eq, sql } from 'drizzle-orm';
+import { ConcurrentModification, InvariantViolation } from '../../shared/domain/domain-error.js';
 import { Money } from '../../shared/domain/money.js';
 import { DatabaseContext } from '../../shared/infrastructure/database/database.module.js';
 import {
@@ -51,14 +51,54 @@ export class DrizzleOrderRepository implements OrderRepository {
       .where(eq(orders.reservationId, reservationId))
       .limit(1);
 
-    if (!row) return null;
+    return row ? this.hydrate(row) : null;
+  }
 
+  async findByIdForUpdate(id: string): Promise<Order | null> {
+    // Locks the row so a concurrent refund of the same order queues behind us
+    // rather than both reading PAID.
+    const locked = await this.context.db.execute<{ id: string }>(sql`
+      SELECT id FROM orders WHERE id = ${id} FOR UPDATE
+    `);
+
+    if (locked.rows.length === 0) return null;
+
+    const [row] = await this.context.db.select().from(orders).where(eq(orders.id, id)).limit(1);
+
+    return row ? this.hydrate(row) : null;
+  }
+
+  /**
+   * Optimistic update: WHERE id = ? AND version = ?, bumping in the same
+   * statement. Zero rows affected means the row moved since we read it.
+   */
+  async updateState(order: Order): Promise<void> {
+    const updated = await this.context.db
+      .update(orders)
+      .set({
+        state: order.state,
+        failureReason: order.reasonForFailure ?? null,
+        version: order.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, order.id), eq(orders.version, order.version)))
+      .returning({ id: orders.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrentModification('Order', order.id);
+    }
+  }
+
+  private async hydrate(row: typeof orders.$inferSelect): Promise<Order> {
     const lines = await this.context.db
       .select()
       .from(orderLines)
       .where(eq(orderLines.orderId, row.id));
 
-    const order = Order.place({
+    // rehydrate, not place()-then-walk-forward: replaying transitions that
+    // already happened is fragile and rejects states the rules no longer
+    // allow reaching.
+    return Order.rehydrate({
       id: row.id,
       reservationId: row.reservationId,
       lines: lines.map((line) => ({
@@ -66,20 +106,12 @@ export class DrizzleOrderRepository implements OrderRepository {
         seatCode: line.seatCode,
         price: Money.of(line.priceMinor, line.currency),
       })),
-      currency: row.currency,
-      now: row.placedAt,
+      total: Money.of(Number(row.totalMinor), row.currency),
+      placedAt: row.placedAt,
+      state: row.state as Order['state'],
+      failureReason: row.failureReason ?? undefined,
+      version: row.version,
     });
-
-    // Replay the stored state. `place()` always starts at PENDING, so a paid
-    // order has to be walked forward rather than constructed directly.
-    if (row.state === 'PAID') order.markPaid();
-    if (row.state === 'FAILED') order.markFailed(row.failureReason ?? 'unknown');
-    if (row.state === 'REFUNDED') {
-      order.markPaid();
-      order.refund();
-    }
-
-    return order;
   }
 }
 

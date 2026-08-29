@@ -6,6 +6,7 @@ import {
 } from '../shared/domain/transaction-runner.port.js';
 import { IdempotencyInterceptor } from '../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { CheckoutUseCase } from './application/checkout.use-case.js';
+import { RefundOrderUseCase } from './application/refund-order.use-case.js';
 import {
   LEDGER_REPOSITORY,
   ORDER_REPOSITORY,
@@ -19,6 +20,7 @@ import {
   DrizzleOrderRepository,
 } from './infrastructure/drizzle-payment.repository.js';
 import { InventorySeatClaimAdapter } from './infrastructure/inventory-seat-claim.adapter.js';
+import { OrdersController } from './interface/orders.controller.js';
 import { PaymentsController } from './interface/payments.controller.js';
 
 /**
@@ -32,7 +34,7 @@ import { PaymentsController } from './interface/payments.controller.js';
  */
 @Module({
   imports: [InventoryModule],
-  controllers: [PaymentsController],
+  controllers: [PaymentsController, OrdersController],
   providers: [
     IdempotencyInterceptor,
 
@@ -49,6 +51,16 @@ import { PaymentsController } from './interface/payments.controller.js';
         transaction: TransactionRunner,
       ) => new CheckoutUseCase(seats, orders, ledger, transaction),
       inject: [SEAT_CLAIM_PORT, ORDER_REPOSITORY, LEDGER_REPOSITORY, TRANSACTION_RUNNER],
+    },
+    {
+      provide: RefundOrderUseCase,
+      useFactory: (
+        orders: OrderRepository,
+        ledger: LedgerRepository,
+        seats: SeatClaimPort,
+        transaction: TransactionRunner,
+      ) => new RefundOrderUseCase(orders, ledger, seats, transaction),
+      inject: [ORDER_REPOSITORY, LEDGER_REPOSITORY, SEAT_CLAIM_PORT, TRANSACTION_RUNNER],
     },
   ],
 })

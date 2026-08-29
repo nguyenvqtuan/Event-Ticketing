@@ -197,6 +197,15 @@ export class DrizzleReservationRepository implements ReservationRepository {
     }));
   }
 
+  async releaseClaims(id: ReservationId): Promise<void> {
+    await this.context.db.execute(sql`
+      UPDATE reservation_items
+         SET claim_state = 'RELEASED', updated_at = now()
+       WHERE reservation_id = ${id}
+         AND claim_state <> 'RELEASED'
+    `);
+  }
+
   async markClaimsSold(id: ReservationId): Promise<void> {
     await this.context.db.execute(sql`
       UPDATE reservation_items

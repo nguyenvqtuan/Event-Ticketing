@@ -129,7 +129,7 @@ export class CheckoutUseCase {
       id: randomUUID(),
       entries: [LedgerEntry.of(cash, 'DEBIT', total), LedgerEntry.of(revenue, 'CREDIT', total)],
       occurredAt: now,
-      reference: `order:${orderId}`,
+      reference: `order:${orderId}:sale`,
       currency,
     });
 

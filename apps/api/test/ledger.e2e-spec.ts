@@ -133,7 +133,7 @@ describe('Ledger & order confirmation (e2e)', () => {
                                   ELSE -amount_minor END),0)::int AS imbalance
            FROM ledger_entries
           WHERE transaction_id = (SELECT id FROM ledger_transactions
-                                   WHERE reference = 'order:${response.body.orderId}')`,
+                                   WHERE reference = 'order:${response.body.orderId}:sale')`,
       );
       expect(Number(ledger?.entries)).toBe(2);
       expect(Number(ledger?.imbalance)).toBe(0);
@@ -176,7 +176,7 @@ describe('Ledger & order confirmation (e2e)', () => {
                 COALESCE(SUM(amount_minor) FILTER (WHERE direction='CREDIT'),0)::int AS credits
            FROM ledger_entries
           WHERE transaction_id = (SELECT id FROM ledger_transactions
-                                   WHERE reference = 'order:${response.body.orderId}')`,
+                                   WHERE reference = 'order:${response.body.orderId}:sale')`,
       );
 
       expect(Number(row?.debits)).toBe(total);
@@ -235,7 +235,7 @@ describe('Ledger & order confirmation (e2e)', () => {
 
       const message = await expectDbError(
         `DELETE FROM ledger_entries WHERE transaction_id =
-           (SELECT id FROM ledger_transactions WHERE reference='order:${response.body.orderId}')`,
+           (SELECT id FROM ledger_transactions WHERE reference='order:${response.body.orderId}:sale')`,
       );
 
       expect(message).toMatch(/append-only/i);

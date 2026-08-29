@@ -52,6 +52,9 @@ class FakeReservations implements ReservationRepository {
   markClaimsSold() {
     return Promise.resolve();
   }
+  releaseClaims() {
+    return Promise.resolve();
+  }
   expireLapsed(limit: number) {
     this.expireLimit = limit;
     return Promise.resolve(this.expiredCount);
