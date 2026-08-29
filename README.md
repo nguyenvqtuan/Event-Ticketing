@@ -3,12 +3,13 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-16** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-17** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
 > flow, optimistic locking, reservation expiry, idempotent payments and the
 > double-entry ledger, refunds-by-reversal, structured logging, the Terminus
-> health probes and a Testcontainers-backed test foundation are all working and
-> verified end to end against a live database.
+> health probes, a Testcontainers-backed test foundation and an end-to-end
+> purchase journey are all working and verified end to end against a live
+> database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -277,7 +278,7 @@ That is the whole command, locally and in CI —
 layers are framework-free by construction, so a test double is a plain class
 implementing a port — no DI container, no mocking library.
 
-**116 integration tests** run against a real Postgres that the suite starts
+**123 integration tests** run against a real Postgres that the suite starts
 itself: [Testcontainers](https://testcontainers.com/) brings up the same
 `postgres:17-alpine` image compose uses, and the project's **own migration
 runner** applies the schema — the path a deploy takes, so a migration that
@@ -293,6 +294,12 @@ Two details that make parallel suites safe against one server:
 - **`resetDatabase()`**, the reusable helper suites call in `beforeAll` — or in
   `beforeEach` where isolation actually matters, as the expiry suite does,
   since the sweeper claims every lapsed reservation in the database.
+
+**One journey test** sits on top of them — create event → hold seats → pay →
+replay the payment → refund — driven over a real socket against a listening
+server, watching the same overview endpoint a client would poll take the seats
+from available to held to sold and back. It is one scenario on purpose: it
+proves the pieces compose, and every error branch is asserted a layer down.
 
 Mocks are deliberately absent from this layer: exactly one of twenty concurrent
 holds winning a seat is a fact about Postgres row locks and an exclusion
