@@ -33,6 +33,16 @@ export class Reservation {
     readonly createdAt: Date,
     readonly expiresAt: Date,
     private currentState: ReservationState,
+    /**
+     * Optimistic-concurrency counter, NOT a business concept.
+     *
+     * It lives on the aggregate because it has to travel with it from read to
+     * write — a repository cannot assert "the version I loaded" unless the
+     * thing it loaded remembers it. The alternative, returning a
+     * `{ aggregate, version }` wrapper, pushes that bookkeeping into every
+     * use case signature for no gain. Nothing in the domain reads it.
+     */
+    readonly version: number = 0,
   ) {}
 
   /** Opens a hold over 1..n seats, expiring `ttlSeconds` after `now`. */
@@ -78,8 +88,9 @@ export class Reservation {
     createdAt: Date;
     expiresAt: Date;
     state: ReservationState;
+    version: number;
   }): Reservation {
-    const { id, eventId, holderId, seatIds, createdAt, expiresAt, state } = params;
+    const { id, eventId, holderId, seatIds, createdAt, expiresAt, state, version } = params;
 
     if (seatIds.length === 0) {
       throw new InvariantViolation(`Stored reservation ${id} has no seats`);
@@ -88,7 +99,16 @@ export class Reservation {
       throw new InvariantViolation(`Stored reservation ${id} expires before it was created`);
     }
 
-    return new Reservation(id, eventId, holderId, [...seatIds], createdAt, expiresAt, state);
+    return new Reservation(
+      id,
+      eventId,
+      holderId,
+      [...seatIds],
+      createdAt,
+      expiresAt,
+      state,
+      version,
+    );
   }
 
   get state(): ReservationState {

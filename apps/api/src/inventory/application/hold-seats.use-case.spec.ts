@@ -59,6 +59,9 @@ class FakeReservations implements ReservationRepository {
   findById() {
     return Promise.resolve(null);
   }
+  updateState() {
+    return Promise.resolve();
+  }
 }
 
 class RecordingRunner implements TransactionRunner {

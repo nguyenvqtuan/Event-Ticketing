@@ -22,6 +22,13 @@
       "when": 1787978282533,
       "tag": "0002_drop_unused_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787985978835,
+      "tag": "0003_optimistic_locking",
+      "breakpoints": true
     }
   ]
 }

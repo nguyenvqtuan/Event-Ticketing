@@ -98,6 +98,9 @@ export const reservations = pgTable(
     holderId: uuid('holder_id').notNull(),
     state: text('state').notNull().default('PENDING'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // Optimistic concurrency (TICK-9). Every state change asserts the version
+    // it read and bumps it, so a lost update becomes a rejected update.
+    version: integer('version').notNull().default(0),
     ...timestamps,
   },
   (table) => [
@@ -168,6 +171,8 @@ export const orders = pgTable(
     currency: char('currency', { length: 3 }).notNull(),
     failureReason: text('failure_reason'),
     placedAt: timestamp('placed_at', { withTimezone: true }).notNull().defaultNow(),
+    // Same optimistic scheme as reservations; exercised when checkout lands.
+    version: integer('version').notNull().default(0),
     ...timestamps,
   },
   (table) => [

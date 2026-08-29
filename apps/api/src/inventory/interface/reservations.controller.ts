@@ -14,6 +14,7 @@ import {
 import { AppConfigService } from '../../config/app-config.service.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { ZodValidationPipe } from '../../shared/interface/zod-validation.pipe.js';
+import { CancelReservationUseCase } from '../application/cancel-reservation.use-case.js';
 import { HoldSeatsUseCase } from '../application/hold-seats.use-case.js';
 import {
   RESERVATION_REPOSITORY,
@@ -29,6 +30,7 @@ import {
 export class ReservationsController {
   constructor(
     private readonly holdSeats: HoldSeatsUseCase,
+    private readonly cancelReservation: CancelReservationUseCase,
     // Injected by token: the interface has no runtime representation.
     @Inject(RESERVATION_REPOSITORY)
     private readonly reservations: ReservationRepository,
@@ -60,6 +62,23 @@ export class ReservationsController {
     };
   }
 
+  /**
+   * Releases a hold. Optimistic: no lock is held across the read-modify-write,
+   * and a concurrent change is rejected with 409 rather than overwritten.
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancel(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
+    const reservation = await this.cancelReservation.execute(id);
+
+    return {
+      id: reservation.id,
+      state: reservation.state,
+      seatIds: reservation.seatIds,
+      version: reservation.version + 1,
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
     const reservation = await this.reservations.findById(id);
@@ -77,6 +96,7 @@ export class ReservationsController {
       seatIds: reservation.seatIds,
       state: reservation.state,
       expiresAt: reservation.expiresAt,
+      version: reservation.version,
       // Expiry is a fact about the clock, not a stored flag: a hold past its
       // TTL reports expired even while its row still says PENDING.
       expired: reservation.isExpired(now),
