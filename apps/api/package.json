@@ -14,6 +14,8 @@
     "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config test/jest-e2e.json",
     "db:generate": "drizzle-kit generate",
+    "db:seed:perf": "psql \"$DATABASE_URL\" -f scripts/seed-perf.sql",
+    "db:explain": "psql \"$DATABASE_URL\" -f scripts/explain-hot-queries.sql",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts up",
     "db:rollback": "node --experimental-strip-types scripts/migrate.ts down",
     "db:status": "node --experimental-strip-types scripts/migrate.ts status",

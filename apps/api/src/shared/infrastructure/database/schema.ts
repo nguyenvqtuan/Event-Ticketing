@@ -62,7 +62,8 @@ export const events = pgTable(
     check('events_sales_window', sql`${table.salesCloseAt} > ${table.salesOpenAt}`),
     check('events_sales_close_before_start', sql`${table.salesCloseAt} <= ${table.startsAt}`),
     check('events_name_not_blank', sql`length(btrim(${table.name})) > 0`),
-    index('events_on_sale_idx').on(table.salesOpenAt, table.salesCloseAt),
+    // No index on the sales window: TICK-6 measured it at zero scans. With a
+    // realistic number of events the planner seq-scans this table anyway.
   ],
 );
 
@@ -232,7 +233,9 @@ export const ledgerTransactions = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('ledger_transactions_reference_idx').on(table.reference)],
+  // No index on `reference`: TICK-6 measured it at zero scans. It returns with
+  // the query that needs it, not before.
+  () => [],
 );
 
 export const ledgerEntries = pgTable(

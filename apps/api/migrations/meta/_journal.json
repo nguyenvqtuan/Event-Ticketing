@@ -8,6 +8,20 @@
       "when": 1787975645466,
       "tag": "0000_init_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787975645467,
+      "tag": "0001_seat_exclusivity_and_ledger_balance",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787978282533,
+      "tag": "0002_drop_unused_indexes",
+      "breakpoints": true
     }
   ]
 }
