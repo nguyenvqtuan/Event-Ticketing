@@ -3,11 +3,12 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-14** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-15** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
 > flow, optimistic locking, reservation expiry, idempotent payments and the
-> double-entry ledger, refunds-by-reversal and structured logging are all
-> working and verified end to end against a live database.
+> double-entry ledger, refunds-by-reversal, structured logging and the
+> Terminus health probes are all working and verified end to end against a
+> live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -64,7 +65,7 @@ rather than start without it (see [Configuration](#configuration)).
 on <http://localhost:3001>.
 
 ```bash
-curl localhost:3000/ping   # {"status":"ok","uptimeSeconds":12}
+curl localhost:3000/healthz   # {"status":"ok","info":{"process":{"state":"ok",...}}}
 ```
 
 ## Commands
@@ -104,7 +105,7 @@ multi-stage image that would ship — not a dev server:
 
 ```bash
 docker compose up --build
-curl localhost:3000/ready   # {"ready":true,"dependencies":{"database":"up"}}
+curl localhost:3000/readyz   # {"status":"ok","info":{"database":{"status":"up"},...}}
 ```
 
 The build context is the **repository root**, not `apps/api` — a pnpm workspace
@@ -119,7 +120,7 @@ docker build -f apps/api/Dockerfile -t event-ticketing-api .
 it fails with _"the --mount option requires BuildKit"_. Compose uses BuildKit by
 default; a bare `docker build` on an older setup may need `DOCKER_BUILDKIT=1`.
 
-Runtime image is **303 MB** on `node:24-alpine`, containing no TypeScript
+Runtime image is **316 MB** on `node:24-alpine`, containing no TypeScript
 toolchain and no dev dependencies.
 
 Notes on the image:
@@ -179,19 +180,49 @@ mid-payment is skipped rather than expired underneath it.
 
 ### Health endpoints
 
-The two are deliberately distinct, and compose healthchecks the right one:
+Built on `@nestjs/terminus`, so the two answer in its shape — `status`, plus an
+`info`/`error` split naming each indicator:
 
-| Endpoint     | Meaning                                        | Touches Postgres |
-| ------------ | ---------------------------------------------- | ---------------- |
-| `GET /ping`  | Liveness — is the process up?                  | No               |
-| `GET /ready` | Readiness — can it serve traffic? `503` if not | Yes (`SELECT 1`) |
+| Endpoint       | Meaning                                        | Touches Postgres          |
+| -------------- | ---------------------------------------------- | ------------------------- |
+| `GET /healthz` | Liveness — is the process up?                  | No                        |
+| `GET /readyz`  | Readiness — can it serve traffic? `503` if not | Yes (`SELECT 1` + schema) |
 
 A failing readiness check should pull an instance out of rotation; a failing
 liveness check should restart it. Conflating them turns a brief database blip
-into a restart loop.
+into a restart loop — which is why `/healthz` answers `200` even with Postgres
+gone, reporting `degraded` in its details rather than inviting a kill.
+
+**Readiness checks the schema, not just the socket.** A database that answers
+`SELECT 1` while two migrations behind will reject every query the new code
+makes, so `/readyz` compares the migrations the build ships against the
+`schema_migrations` ledger and answers `503` — naming the pending versions —
+until they match. That makes a half-finished deploy visible as "not ready"
+instead of as a wave of 500s:
+
+```json
+{
+  "status": "error",
+  "info": { "database": { "status": "up" } },
+  "error": { "migrations": { "status": "down", "pending": ["0004_ledger_append_only"] } }
+}
+```
+
+The probes run against a two-connection pool of their own rather than the
+application pool. A check that queues behind saturated application traffic
+answers late, and an orchestrator reads a timed-out readiness check as "down" —
+turning load into an outage.
 
 `api` waits for `db` via `condition: service_healthy` — the API validates config
-and connects on boot, so racing Postgres would just produce a restart loop.
+and connects on boot, so racing Postgres would just produce a restart loop. The
+compose healthcheck and the image's `HEALTHCHECK` both call `/readyz`, which is
+why the image carries its `migrations/` directory beside `dist/`.
+
+Terminus's peer range stops at NestJS 11 and this project is on 12, but unlike
+`nestjs-pino` (see [Logging](#logging)) it loads and runs there: its CommonJS
+build `require()`s Nest's ESM packages, which Node 24 permits outside a cycle.
+Jest's ESM runtime is stricter, so `test/setup-env.ts` evaluates those packages
+before any suite links Terminus.
 
 ## Logging
 
@@ -221,8 +252,8 @@ Structured JSON on stdout, one object per line, with a correlation ID on
   by default. `redact` is a second line of defence, not the first.
 - The idempotency key **is** logged — it is the most useful field when tracing
   a retry.
-- Verbosity follows `LOG_LEVEL` (see below); `/ping` and `/ready` are excluded
-  so health checks do not drown the log.
+- Verbosity follows `LOG_LEVEL` (see below); `/healthz` and `/readyz` are
+  excluded so health checks do not drown the log.
 
 `nestjs-pino` is the usual choice, but it ships CommonJS and `require()`s
 `@nestjs/common`, which is ESM-only from NestJS 12 — it fails at import. pino

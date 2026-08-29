@@ -49,12 +49,18 @@ COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
 COPY --from=build --chown=node:node /out/package.json ./package.json
 
+# Readiness compares the migrations this build ships against the ledger in the
+# database, so the image carries them. They sit next to `dist`, at the same
+# depth as in the source tree — which is how one relative path resolves in both.
+COPY --from=build --chown=node:node /repo/apps/api/migrations ./migrations
+
 USER node
 EXPOSE 3000
 
-# Readiness, not liveness: this asserts the API can actually reach Postgres.
+# Readiness, not liveness: this asserts the API reaches Postgres and that the
+# schema matches the migrations this image ships.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Exec form, so node is PID 1 and receives SIGTERM directly for graceful shutdown.
 CMD ["node", "dist/main.js"]

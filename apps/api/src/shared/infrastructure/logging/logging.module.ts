@@ -195,7 +195,7 @@ export function createHttpLoggerMiddleware(logger: PinoLogger) {
     autoLogging: {
       ignore: (req: IncomingMessage) => {
         const url = (req as { originalUrl?: string; url?: string }).originalUrl ?? req.url;
-        return url === '/ping' || url === '/ready';
+        return url === '/healthz' || url === '/readyz';
       },
     },
   });
