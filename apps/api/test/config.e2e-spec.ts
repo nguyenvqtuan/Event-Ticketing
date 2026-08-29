@@ -85,7 +85,7 @@ describe('Configuration bootstrap (e2e)', () => {
       let response: Response | undefined;
       for (let attempt = 0; attempt < 60; attempt++) {
         try {
-          response = await fetch(`http://localhost:${port}/ping`);
+          response = await fetch(`http://localhost:${port}/healthz`);
           break;
         } catch {
           await new Promise((r) => setTimeout(r, 250));

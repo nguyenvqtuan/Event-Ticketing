@@ -1,52 +1,39 @@
-import { Controller, Get, HttpCode, HttpStatus, Res } from '@nestjs/common';
-import { type Response } from 'express';
-import { CheckHealthUseCase } from '../application/check-health.use-case.js';
-import { CheckReadinessUseCase } from '../application/check-readiness.use-case.js';
-
-interface PingResponse {
-  status: string;
-  uptimeSeconds: number;
-}
-
-interface ReadyResponse {
-  ready: boolean;
-  dependencies: Readonly<Record<string, 'up' | 'down'>>;
-}
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, type HealthCheckResult } from '@nestjs/terminus';
+import { LivenessIndicator } from './liveness.indicator.js';
+import { ReadinessIndicator } from './readiness.indicator.js';
 
 /**
- * Interface layer — HTTP is a detail. This maps a request onto a use case and
- * a domain object onto a response body. No business rules live here.
+ * Interface layer — HTTP is a detail. This maps a request onto a use case (via
+ * a Terminus indicator) and its result onto a response body. No business rules
+ * live here; Terminus owns the response shape and the 200/503 split.
+ *
+ * The two endpoints are deliberately distinct. A failing readiness check
+ * should pull an instance out of rotation; a failing liveness check should
+ * restart it. Conflating them turns a brief database blip into a restart loop.
  */
 @Controller()
 export class HealthController {
   constructor(
-    private readonly checkHealth: CheckHealthUseCase,
-    private readonly checkReadiness: CheckReadinessUseCase,
+    private readonly health: HealthCheckService,
+    private readonly liveness: LivenessIndicator,
+    private readonly readiness: ReadinessIndicator,
   ) {}
 
   /** Liveness: is the process up? Touches nothing external. */
-  @Get('ping')
-  @HttpCode(HttpStatus.OK)
-  ping(): PingResponse {
-    const status = this.checkHealth.execute();
-
-    return {
-      status: status.state,
-      uptimeSeconds: status.uptimeSeconds,
-    };
+  @Get('healthz')
+  @HealthCheck()
+  checkLiveness(): Promise<HealthCheckResult> {
+    return this.health.check([() => this.liveness.check()]);
   }
 
   /**
-   * Readiness: can this instance serve traffic? Returns 503 when a dependency
-   * is down, so an orchestrator removes it from rotation instead of
-   * restarting it.
+   * Readiness: can this instance serve traffic? 503 when Postgres is
+   * unreachable or the schema is behind the migrations this build ships.
    */
-  @Get('ready')
-  async ready(@Res({ passthrough: true }) response: Response): Promise<ReadyResponse> {
-    const status = await this.checkReadiness.execute();
-
-    response.status(status.ready ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
-
-    return { ready: status.ready, dependencies: status.dependencies };
+  @Get('readyz')
+  @HealthCheck()
+  checkReadiness(): Promise<HealthCheckResult> {
+    return this.health.check([() => this.readiness.check()]);
   }
 }

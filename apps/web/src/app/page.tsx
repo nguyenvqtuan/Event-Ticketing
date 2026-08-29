@@ -39,8 +39,8 @@ export default function Home() {
         <h2 style={{ fontSize: '0.875rem', margin: '0 0 0.5rem' }}>API</h2>
         <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.875rem' }}>
           Health endpoint:{' '}
-          <a href={`${API_URL}/ping`} style={{ color: 'var(--accent)' }}>
-            {API_URL}/ping
+          <a href={`${API_URL}/healthz`} style={{ color: 'var(--accent)' }}>
+            {API_URL}/healthz
           </a>
         </p>
       </div>
