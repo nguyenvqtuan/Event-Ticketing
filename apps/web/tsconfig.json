@@ -1,6 +1,9 @@
 {
   "extends": "@repo/tsconfig/next.json",
   "compilerOptions": {
+    // Spans src/ including *.spec.ts — this config drives typecheck and lint.
+    // jest runs through tsconfig.jest.json, which only adds emit settings.
+    "types": ["node", "jest"],
     "paths": {
       "@/*": ["./src/*"]
     }

@@ -3,7 +3,7 @@ import { DomainError } from '../../shared/domain/domain-error.js';
 import { Money } from '../../shared/domain/money.js';
 import { type TransactionRunner } from '../../shared/domain/transaction-runner.port.js';
 import { LedgerEntry, LedgerTransaction } from '../domain/ledger.js';
-import { Order, type OrderLine } from '../domain/order.js';
+import { Order, type OrderLine, type OrderState } from '../domain/order.js';
 import {
   type LedgerRepository,
   type OrderRepository,
@@ -30,7 +30,7 @@ export interface CheckoutCommand {
 export interface CheckoutResult {
   readonly orderId: string;
   readonly reservationId: string;
-  readonly state: string;
+  readonly state: OrderState;
   readonly total: Money;
   readonly seatIds: readonly string[];
 }

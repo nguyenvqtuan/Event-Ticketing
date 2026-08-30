@@ -20,6 +20,7 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
+COPY packages/contracts/package.json packages/contracts/
 COPY packages/tsconfig/package.json packages/tsconfig/
 COPY packages/eslint-config/package.json packages/eslint-config/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
@@ -29,7 +30,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 FROM deps AS build
 COPY packages/ packages/
 COPY apps/api/ apps/api/
-RUN pnpm --filter @repo/api build
+
+# `@repo/api...` is the package AND its workspace dependencies, which pnpm runs
+# in topological order — so @repo/contracts is compiled to the .d.ts files the
+# API's controllers are typed against before `nest build` looks for them.
+# Filtering to @repo/api alone leaves that dependency unbuilt.
+RUN pnpm --filter "@repo/api..." run build
 
 # `pnpm deploy` resolves workspace links into a real, self-contained
 # node_modules and drops devDependencies — the runtime stage can then be a

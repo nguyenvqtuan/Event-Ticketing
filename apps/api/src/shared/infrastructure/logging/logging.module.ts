@@ -9,6 +9,7 @@ import {
   Module,
   type NestModule,
 } from '@nestjs/common';
+import { CORRELATION_HEADER } from '@repo/contracts';
 import pino, { type Logger as PinoLogger } from 'pino';
 // Named import: pino-http's default does not resolve as callable under
 // NodeNext module resolution, though the named export does.
@@ -17,9 +18,12 @@ import { AppConfigModule } from '../../../config/config.module.js';
 import { AppConfigService } from '../../../config/app-config.service.js';
 import { getCorrelationId, runWithCorrelationId } from './correlation.store.js';
 
-/** Accepted inbound correlation headers, in order of preference. */
-const CORRELATION_HEADERS = ['x-correlation-id', 'x-request-id'] as const;
-export const CORRELATION_HEADER = 'x-correlation-id';
+/**
+ * Accepted inbound correlation headers, in order of preference. The canonical
+ * one comes from `@repo/contracts`, so the API and its clients cannot spell it
+ * differently — a mismatch would not error, it would silently lose the trace.
+ */
+const CORRELATION_HEADERS = [CORRELATION_HEADER, 'x-request-id'] as const;
 
 /** Injection token for the shared pino instance, so tests can redirect it. */
 export const PINO_INSTANCE = Symbol('PINO_INSTANCE');

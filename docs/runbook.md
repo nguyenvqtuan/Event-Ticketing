@@ -43,6 +43,18 @@ config is a failed deploy, not an incident.
 
 `apps/api/.env.example` is the same list in copyable form.
 
+### The web app
+
+| Variable              | Required | Notes                                                                                                                                                             |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | **Yes**  | The address a **browser** uses. Inlined at BUILD time, so it must be set when the image is built, not just when it runs.                                          |
+| `API_URL`             | No       | The address the **server** uses, for server components. Often an internal name (`http://api:3000`) the browser could never resolve. Falls back to the public one. |
+
+Both are listed in `apps/web/.env.example`. Getting the first one wrong is the
+classic frontend deploy failure: the bundle ends up pointing at `localhost`,
+and every call from a real browser fails in a way that looks like the API is
+down.
+
 ## Deploy
 
 ```
