@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    // NestJS 12 is ESM-only ("type": "module", no CommonJS entry point), so
+    // the API is ESM too and package.json must set "type": "module".
+    // Consequence: relative imports need explicit .js extensions.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // Required by Nest's DI: @Injectable/@Inject read constructor param types
+    // from the metadata TypeScript emits here.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "sourceMap": true,
+    "incremental": true,
+    "declaration": false
+  }
+}
