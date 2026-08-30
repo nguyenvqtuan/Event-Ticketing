@@ -66,6 +66,19 @@ COPY --from=build --chown=node:node /out/package.json ./package.json
 # depth as in the source tree — which is how one relative path resolves in both.
 COPY --from=build --chown=node:node /repo/apps/api/migrations ./migrations
 
+# The runner too, so the deploy-time migration step uses the SAME artifact as
+# the app it is migrating for (TICK-19). A separate migration image could drift
+# from the SQL this one ships, and readiness would then report the disagreement
+# as a half-done deploy. Node strips the types natively, so this needs no
+# TypeScript at runtime, and `pg` is already a production dependency.
+#
+#   docker run --rm -e DATABASE_URL=... <image> \
+#     node --experimental-strip-types scripts/migrate.ts up
+#
+# Only the runner: the other scripts here are performance tooling and have no
+# business in a shipping image.
+COPY --from=build --chown=node:node /repo/apps/api/scripts/migrate.ts ./scripts/migrate.ts
+
 USER node
 EXPOSE 3000
 
