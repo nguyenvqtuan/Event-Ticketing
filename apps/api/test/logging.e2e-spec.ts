@@ -72,7 +72,10 @@ describe('Structured logging (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useLogger(new PinoLoggerService(captureLogger));
-    await app.init();
+    // Listening for the suite's lifetime because this suite races concurrent
+    // requests: supertest closes a server it had to start itself as soon as the
+    // FIRST request finishes, resetting the ones still in flight (docs/testing.md).
+    await app.listen(0);
   });
 
   afterAll(async () => {
