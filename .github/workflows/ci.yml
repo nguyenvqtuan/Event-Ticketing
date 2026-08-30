@@ -111,8 +111,12 @@ jobs:
       # The gate. HIGH and CRITICAL fail the pipeline; anything with no fix
       # available yet is not actionable, and an accepted CVE goes in
       # .trivyignore with a dated reason beside it.
+      #
+      # The ref needs its `v`: trivy-action tags releases `v0.36.0`, and a bare
+      # `0.28.0` is not a tag it has — Actions fails the job at resolution time
+      # with "unable to find version", before a single step runs.
       - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE }}:ci
           format: table
@@ -123,7 +127,7 @@ jobs:
 
       - name: Save the scan report
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE }}:ci
           format: json
