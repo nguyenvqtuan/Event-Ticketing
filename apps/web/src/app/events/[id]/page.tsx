@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { type EventResponse, type SeatPageResponse } from '@repo/contracts';
-import { SeatMap } from '@/components/seat-map';
+import { BookingFlow } from '@/components/booking-flow';
 import { api } from '@/lib/api/client';
 import { ApiError, NotFoundError } from '@/lib/api/errors';
 
@@ -102,11 +102,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
         </p>
       )}
 
-      <SeatMap seats={seats.seats} />
-
-      <p className="muted" style={{ fontSize: '0.875rem', marginTop: '1.5rem' }}>
-        Selection is local to this page. Holding seats and paying for them arrive in TICK-F3.
-      </p>
+      <BookingFlow eventId={event.id} seats={seats.seats} />
     </main>
   );
 }
