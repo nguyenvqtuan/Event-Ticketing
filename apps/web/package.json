@@ -7,9 +7,12 @@
     "dev": "next dev -p 3001",
     "start": "next start -p 3001",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "dependencies": {
+    "@repo/contracts": "workspace:*",
     "next": "16.3.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -17,11 +20,14 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/tsconfig": "workspace:*",
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.4.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.3",
+    "jest": "^30.5.0",
+    "ts-jest": "^29.4.12",
     "typescript": "6.0.3"
   }
 }

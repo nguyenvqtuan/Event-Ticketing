@@ -1,4 +1,5 @@
 import { Controller, HttpCode, HttpStatus, Param, Post, UseInterceptors } from '@nestjs/common';
+import { type RefundResponse } from '@repo/contracts';
 import { z } from 'zod';
 import { RequireIdempotencyKey } from '../../shared/infrastructure/idempotency/idempotency.decorator.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
@@ -24,7 +25,9 @@ export class OrdersController {
   @HttpCode(HttpStatus.OK)
   @RequireIdempotencyKey()
   @UseInterceptors(IdempotencyInterceptor)
-  async refund(@Param('id', new ZodValidationPipe(orderIdSchema)) id: string) {
+  async refund(
+    @Param('id', new ZodValidationPipe(orderIdSchema)) id: string,
+  ): Promise<RefundResponse> {
     const result = await this.refundOrder.execute(id, new Date());
 
     return {

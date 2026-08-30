@@ -35,7 +35,10 @@ apps/
     src/health/             liveness + readiness
     src/config/             validated configuration
   web/                    Next.js client  (port 3001)
+    src/lib/api/            typed client: one method per endpoint, typed errors
+    src/app/events/[id]/    smoke page — fetches and renders a real event
 packages/
+  contracts/              the HTTP contract, imported by BOTH apps
   tsconfig/               shared TypeScript configs (base / nest / next)
   eslint-config/          shared ESLint flat configs (base / nest / next)
 docs/

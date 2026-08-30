@@ -3,7 +3,7 @@ import { DomainError } from '../../shared/domain/domain-error.js';
 import { type Money } from '../../shared/domain/money.js';
 import { type TransactionRunner } from '../../shared/domain/transaction-runner.port.js';
 import { LedgerEntry, LedgerTransaction } from '../domain/ledger.js';
-import { type Order } from '../domain/order.js';
+import { type Order, type OrderState } from '../domain/order.js';
 import {
   type LedgerRepository,
   type OrderRepository,
@@ -18,7 +18,7 @@ export class OrderNotFound extends DomainError {
 
 export interface RefundResult {
   readonly orderId: string;
-  readonly state: string;
+  readonly state: OrderState;
   readonly refunded: Money;
   readonly seatIds: readonly string[];
 }

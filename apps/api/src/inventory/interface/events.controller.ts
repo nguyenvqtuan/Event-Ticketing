@@ -10,6 +10,11 @@ import {
   Query,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  type CreateEventResponse,
+  type EventResponse,
+  type SeatPageResponse,
+} from '@repo/contracts';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { ZodValidationPipe } from '../../shared/interface/zod-validation.pipe.js';
 import { CreateEventUseCase } from '../application/create-event.use-case.js';
@@ -39,7 +44,9 @@ export class EventsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(IdempotencyInterceptor)
-  async create(@Body(new ZodValidationPipe(createEventSchema)) dto: CreateEventDto) {
+  async create(
+    @Body(new ZodValidationPipe(createEventSchema)) dto: CreateEventDto,
+  ): Promise<CreateEventResponse> {
     const result = await this.createEvent.execute({
       id: randomUUID(),
       name: dto.name,
@@ -60,15 +67,20 @@ export class EventsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', new ZodValidationPipe(eventIdSchema)) id: string) {
+  async findOne(
+    @Param('id', new ZodValidationPipe(eventIdSchema)) id: string,
+  ): Promise<EventResponse> {
     const overview = await this.getOverview.execute(id, new Date());
 
     return {
       id: overview.id,
       name: overview.name,
-      startsAt: overview.startsAt,
-      salesOpenAt: overview.salesOpenAt,
-      salesCloseAt: overview.salesCloseAt,
+      // Serialised explicitly rather than left to JSON.stringify. The wire
+      // format is a string either way; saying so is what lets the response be
+      // typed against the shared contract instead of against `Date`.
+      startsAt: overview.startsAt.toISOString(),
+      salesOpenAt: overview.salesOpenAt.toISOString(),
+      salesCloseAt: overview.salesCloseAt.toISOString(),
       onSale: overview.onSale,
       seats: overview.seats,
     };
@@ -78,7 +90,7 @@ export class EventsController {
   async seats(
     @Param('id', new ZodValidationPipe(eventIdSchema)) id: string,
     @Query(new ZodValidationPipe(listSeatsQuerySchema)) query: ListSeatsQueryDto,
-  ) {
+  ): Promise<SeatPageResponse> {
     const page = await this.listSeats.execute({
       eventId: id,
       status: query.status,

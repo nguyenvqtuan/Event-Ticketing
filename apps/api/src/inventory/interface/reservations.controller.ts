@@ -11,6 +11,12 @@ import {
   Post,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  type CancelReservationResponse,
+  type ConfirmReservationResponse,
+  type ReservationDetailResponse,
+  type ReservationResponse,
+} from '@repo/contracts';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { ZodValidationPipe } from '../../shared/interface/zod-validation.pipe.js';
@@ -42,7 +48,9 @@ export class ReservationsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(IdempotencyInterceptor)
-  async create(@Body(new ZodValidationPipe(createReservationSchema)) dto: CreateReservationDto) {
+  async create(
+    @Body(new ZodValidationPipe(createReservationSchema)) dto: CreateReservationDto,
+  ): Promise<ReservationResponse> {
     const reservation = await this.holdSeats.execute({
       id: randomUUID(),
       eventId: dto.eventId,
@@ -59,8 +67,8 @@ export class ReservationsController {
       holderId: reservation.holderId,
       seatIds: reservation.seatIds,
       state: reservation.state,
-      createdAt: reservation.createdAt,
-      expiresAt: reservation.expiresAt,
+      createdAt: reservation.createdAt.toISOString(),
+      expiresAt: reservation.expiresAt.toISOString(),
     };
   }
 
@@ -70,7 +78,9 @@ export class ReservationsController {
    */
   @Post(':id/confirm')
   @HttpCode(HttpStatus.OK)
-  async confirm(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
+  async confirm(
+    @Param('id', new ZodValidationPipe(reservationIdSchema)) id: string,
+  ): Promise<ConfirmReservationResponse> {
     const reservation = await this.confirmReservation.execute(id, new Date());
 
     return {
@@ -86,7 +96,9 @@ export class ReservationsController {
    */
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  async cancel(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
+  async cancel(
+    @Param('id', new ZodValidationPipe(reservationIdSchema)) id: string,
+  ): Promise<CancelReservationResponse> {
     const reservation = await this.cancelReservation.execute(id);
 
     return {
@@ -98,7 +110,9 @@ export class ReservationsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', new ZodValidationPipe(reservationIdSchema)) id: string) {
+  async findOne(
+    @Param('id', new ZodValidationPipe(reservationIdSchema)) id: string,
+  ): Promise<ReservationDetailResponse> {
     const reservation = await this.reservations.findById(id);
 
     if (!reservation) {
@@ -113,7 +127,7 @@ export class ReservationsController {
       holderId: reservation.holderId,
       seatIds: reservation.seatIds,
       state: reservation.state,
-      expiresAt: reservation.expiresAt,
+      expiresAt: reservation.expiresAt.toISOString(),
       version: reservation.version,
       // Expiry is a fact about the clock, not a stored flag: a hold past its
       // TTL reports expired even while its row still says PENDING.

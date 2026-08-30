@@ -7,6 +7,7 @@ import {
   Post,
   UseInterceptors,
 } from '@nestjs/common';
+import { type PayResponse } from '@repo/contracts';
 import { z } from 'zod';
 import { RequireIdempotencyKey } from '../../shared/infrastructure/idempotency/idempotency.decorator.js';
 import { IdempotencyInterceptor } from '../../shared/infrastructure/idempotency/idempotency.interceptor.js';
@@ -21,7 +22,7 @@ const reservationIdSchema = z.uuid('must be a UUID');
  * silently charged a different amount. It is also the payload the idempotency
  * key is hashed over.
  */
-const paySchema = z.object({
+export const paySchema = z.object({
   amountMinor: z.int().nonnegative(),
   currency: z.string().length(3).toUpperCase(),
 });
@@ -49,7 +50,7 @@ export class PaymentsController {
   async pay(
     @Param('id', new ZodValidationPipe(reservationIdSchema)) id: string,
     @Body(new ZodValidationPipe(paySchema)) dto: PayDto,
-  ) {
+  ): Promise<PayResponse> {
     const result = await this.checkout.execute({
       reservationId: id,
       amountMinor: dto.amountMinor,

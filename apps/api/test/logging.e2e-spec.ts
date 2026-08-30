@@ -6,8 +6,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { resetDatabase } from './support/database.js';
+import { CORRELATION_HEADER } from '@repo/contracts';
 import {
-  CORRELATION_HEADER,
   createPinoLogger,
   PINO_INSTANCE,
   PinoLoggerService,

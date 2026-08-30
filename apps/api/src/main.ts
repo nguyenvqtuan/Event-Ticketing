@@ -6,7 +6,10 @@ import { type Logger as PinoLogger } from 'pino';
 
 import { AppModule } from './app.module.js';
 import { AppConfigService } from './config/app-config.service.js';
-import { PinoLoggerService, PINO_INSTANCE } from './shared/infrastructure/logging/logging.module.js';
+import {
+  PinoLoggerService,
+  PINO_INSTANCE,
+} from './shared/infrastructure/logging/logging.module.js';
 
 /** Signals an orchestrator uses to ask for a clean stop. */
 const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT'] as const;
