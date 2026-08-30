@@ -3,12 +3,14 @@ import {
   type EventRepository,
   type SeatPage,
   type SeatRepository,
+  type SeatStatus,
 } from '../domain/inventory-repository.port.js';
 import { EventNotFound } from './get-event-overview.use-case.js';
 
 export interface ListSeatsQuery {
   readonly eventId: EventId;
-  readonly status: 'AVAILABLE' | 'HELD' | 'SOLD';
+  /** `ALL` applies no filter — what a seat map asks for. */
+  readonly status: SeatStatus | 'ALL';
   readonly limit: number;
   readonly offset: number;
 }

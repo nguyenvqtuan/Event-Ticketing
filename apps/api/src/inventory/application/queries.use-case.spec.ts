@@ -31,6 +31,9 @@ class FakeEvents implements EventRepository {
   findById() {
     return Promise.resolve(this.event);
   }
+  list() {
+    return Promise.resolve({ events: this.event ? [this.event] : [], total: this.event ? 1 : 0 });
+  }
 }
 
 class FakeSeats implements SeatRepository {
@@ -96,7 +99,9 @@ describe('ListSeatsUseCase', () => {
   it('returns the page with the paging it was asked for', async () => {
     const seats = new FakeSeats();
     seats.page = {
-      seats: [{ id: 'seat-1', code: 'A1', priceMinor: 5_000, currency: 'GBP' }],
+      seats: [
+        { id: 'seat-1', code: 'A1', priceMinor: 5_000, currency: 'GBP', status: 'AVAILABLE' },
+      ],
       total: 1,
     };
 

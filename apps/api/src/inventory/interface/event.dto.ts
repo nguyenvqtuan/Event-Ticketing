@@ -41,11 +41,28 @@ export type CreateEventDto = z.infer<typeof createEventSchema>;
 export const listSeatsQuerySchema = z.object({
   // Query strings arrive as text; the schema coerces so the controller gets
   // numbers and the defaults apply when a parameter is omitted.
-  status: z.enum(['AVAILABLE', 'HELD', 'SOLD']).default('AVAILABLE'),
+  //
+  // `ALL` is what a seat map asks for. The default stays AVAILABLE so existing
+  // callers are unaffected — this widens the endpoint rather than changing it.
+  status: z.enum(['AVAILABLE', 'HELD', 'SOLD', 'ALL']).default('AVAILABLE'),
   limit: z.coerce.number().int().positive().max(500).default(100),
   offset: z.coerce.number().int().nonnegative().default(0),
 });
 
 export type ListSeatsQueryDto = z.infer<typeof listSeatsQuerySchema>;
+
+/**
+ * GET /events.
+ *
+ * A lower cap than the seat page: an events list is browsed, and 100 rows is
+ * already more than a page shows. Bounded either way, so no caller can ask the
+ * database for everything.
+ */
+export const listEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+
+export type ListEventsQueryDto = z.infer<typeof listEventsQuerySchema>;
 
 export const eventIdSchema = z.uuid('must be a UUID');

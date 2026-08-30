@@ -7,10 +7,28 @@ import { type SeatBlueprint } from './seat-map.js';
  * `infrastructure/` supplies it, so nothing here imports Drizzle or pg.
  */
 
+/** One page of events, soonest first. */
+export interface EventPage {
+  readonly events: readonly Event[];
+  readonly total: number;
+}
+
 export interface EventRepository {
   save(event: Event): Promise<void>;
   findById(id: EventId): Promise<Event | null>;
+
+  /**
+   * Events ordered by when they start, soonest first (TICK-F2).
+   *
+   * Ordered by `starts_at` then `id`: a plain `ORDER BY starts_at` is not a
+   * total order when two events start together, and an unstable order under
+   * LIMIT/OFFSET silently drops and repeats rows across pages.
+   */
+  list(params: { limit: number; offset: number }): Promise<EventPage>;
 }
+
+/** The three derived availability states a seat can be in. */
+export type SeatStatus = 'AVAILABLE' | 'HELD' | 'SOLD';
 
 /** A seat as stored, with the identity the database assigned. */
 export interface StoredSeat {
@@ -18,6 +36,12 @@ export interface StoredSeat {
   readonly code: string;
   readonly priceMinor: number;
   readonly currency: string;
+  /**
+   * Derived, never stored — computed by the same query that filtered, from the
+   * database's clock. A seat map needs this per seat: asking three times, once
+   * per status, would show a map assembled from three different instants.
+   */
+  readonly status: SeatStatus;
 }
 
 /** Counts of the three derived availability states for one event. */
@@ -61,10 +85,15 @@ export interface SeatRepository {
    */
   overviewFor(eventId: EventId): Promise<SeatOverview>;
 
-  /** Seats of an event filtered by derived availability, paginated. */
+  /**
+   * Seats of an event, paginated, each carrying its derived status.
+   *
+   * `status: 'ALL'` applies no filter — what a seat map needs, since it draws
+   * every seat and colours it by state.
+   */
   listByAvailability(params: {
     eventId: EventId;
-    status: 'AVAILABLE' | 'HELD' | 'SOLD';
+    status: SeatStatus | 'ALL';
     limit: number;
     offset: number;
   }): Promise<SeatPage>;

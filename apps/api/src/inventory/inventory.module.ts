@@ -6,6 +6,7 @@ import {
 import { IdempotencyInterceptor } from '../shared/infrastructure/idempotency/idempotency.interceptor.js';
 import { CreateEventUseCase } from './application/create-event.use-case.js';
 import { GetEventOverviewUseCase } from './application/get-event-overview.use-case.js';
+import { ListEventsUseCase } from './application/list-events.use-case.js';
 import { ListSeatsUseCase } from './application/list-seats.use-case.js';
 import {
   EVENT_REPOSITORY,
@@ -94,6 +95,11 @@ import { ReservationsController } from './interface/reservations.controller.js';
       useFactory: (events: EventRepository, seats: SeatRepository) =>
         new ListSeatsUseCase(events, seats),
       inject: [EVENT_REPOSITORY, SEAT_REPOSITORY],
+    },
+    {
+      provide: ListEventsUseCase,
+      useFactory: (events: EventRepository) => new ListEventsUseCase(events),
+      inject: [EVENT_REPOSITORY],
     },
   ],
   // Exported so the Payment context's adapter can claim seats through the

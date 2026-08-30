@@ -18,6 +18,9 @@ class FakeEventRepository implements EventRepository {
   findById() {
     return Promise.resolve(null);
   }
+  list() {
+    return Promise.resolve({ events: this.saved, total: this.saved.length });
+  }
 }
 
 class FakeSeatRepository implements SeatRepository {

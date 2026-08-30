@@ -1,9 +1,14 @@
 import {
   type CreateEventRequest,
   type CreateReservationRequest,
+  type ListEventsQuery,
   type PayRequest,
 } from '@repo/contracts';
-import { createEventSchema, listSeatsQuerySchema } from './inventory/interface/event.dto.js';
+import {
+  createEventSchema,
+  listEventsQuerySchema,
+  listSeatsQuerySchema,
+} from './inventory/interface/event.dto.js';
 import { createReservationSchema } from './inventory/interface/reservation.dto.js';
 import { paySchema } from './payment/interface/payments.controller.js';
 
@@ -78,6 +83,16 @@ describe('@repo/contracts agrees with the schemas that enforce it', () => {
     const request: PayRequest = { amountMinor: 10_000, currency: 'GBP' };
 
     expect(paySchema.safeParse(request).success).toBe(true);
+  });
+
+  it('accepts an omitted ListEventsQuery and fills the documented defaults', () => {
+    const empty: ListEventsQuery = {};
+
+    expect(listEventsQuerySchema.parse(empty)).toEqual({ limit: 20, offset: 0 });
+  });
+
+  it('accepts ALL as a seat filter, which is what the map asks for', () => {
+    expect(listSeatsQuerySchema.parse({ status: 'ALL' }).status).toBe('ALL');
   });
 
   it('accepts an omitted ListSeatsQuery and fills the documented defaults', () => {
