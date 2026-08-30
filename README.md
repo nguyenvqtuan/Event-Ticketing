@@ -3,13 +3,13 @@
 A seat reservation and ticketing platform. This repository is a pnpm + Turborepo
 monorepo holding a NestJS API and a Next.js web client.
 
-> Status: **TICK-17** done. Scaffold, configuration, domain model, Docker image,
+> Status: **TICK-18** done. Scaffold, configuration, domain model, Docker image,
 > Postgres schema, index audit, event/seat endpoints, the concurrent seat-hold
 > flow, optimistic locking, reservation expiry, idempotent payments and the
 > double-entry ledger, refunds-by-reversal, structured logging, the Terminus
-> health probes, a Testcontainers-backed test foundation and an end-to-end
-> purchase journey are all working and verified end to end against a live
-> database.
+> health probes, a Testcontainers-backed test foundation, an end-to-end
+> purchase journey and a scanning CI pipeline are all working and verified end
+> to end against a live database.
 
 **Start here:** [`docs/domain.md`](docs/domain.md) — aggregates, invariants,
 bounded contexts and the Reservation/Order state machines.
@@ -126,8 +126,12 @@ docker build -f apps/api/Dockerfile -t event-ticketing-api .
 it fails with _"the --mount option requires BuildKit"_. Compose uses BuildKit by
 default; a bare `docker build` on an older setup may need `DOCKER_BUILDKIT=1`.
 
-Runtime image is **316 MB** on `node:24-alpine`, containing no TypeScript
-toolchain and no dev dependencies.
+Runtime image is **337 MB** on `node:24-alpine`, containing no TypeScript
+toolchain, no dev dependencies and no package manager. It grew from 316 MB when
+the security work in [CI](#ci) landed: `apk upgrade` writes patched packages as
+a new layer, and deleting npm adds whiteouts rather than reclaiming the base
+layer's bytes. Twenty megabytes is a fair price for an image with no known
+fixable HIGH or CRITICAL vulnerabilities.
 
 Notes on the image:
 
@@ -138,6 +142,10 @@ Notes on the image:
   then a plain copy of `node_modules`, `dist` and `package.json` — no pnpm, no
   TypeScript, no symlinks escaping the image.
 - **Runs as the unprivileged `node` user** that `node:alpine` already provides.
+- **No npm, and OS packages patched at build time.** The container only ever
+  runs `node dist/main.js`, so the bundled package manager is deleted and
+  `apk upgrade` applies fixes the published base has not picked up yet. Both
+  are what turn the CI scan gate from red to green — see [CI](#ci).
 - **`node` is PID 1** (exec-form `CMD`), so it receives `SIGTERM` directly and
   shuts the pool down cleanly.
 
@@ -313,6 +321,52 @@ where the queries and filters they exist to drive actually run.
 Why the rest of it looks the way it does — the reset helper's two preserved
 tables, the suites that spawn a real process, the Docker discovery for Colima —
 is in [`docs/testing.md`](docs/testing.md).
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) — **lint → test → build →
+scan → push**, in two jobs:
+
+| Job      | What it does                                                                    |
+| -------- | ------------------------------------------------------------------------------- |
+| `verify` | `pnpm verify`: lint, typecheck, unit tests with coverage, integration tests     |
+| `image`  | Builds the shipping image, scans it with Trivy, and pushes — from main or a tag |
+
+`verify` is the merge gate, and it is the same command you run locally, so
+there is no CI-only incantation to keep in sync. `image` waits for it: nothing
+is built from code that does not lint or pass its tests.
+
+**The scan is a gate, not a report.** Trivy fails the pipeline on `HIGH` or
+`CRITICAL` vulnerabilities that have a fix available (`--ignore-unfixed`, since
+an unfixed CVE is not actionable at build time). An accepted finding goes in
+[`.trivyignore`](.trivyignore) with a reason and a date beside it — the file is
+empty today. The full report, medium severity included, is uploaded as an
+artifact whether the gate passes or fails.
+
+Making that gate pass took two changes to the runtime image, both worth having
+anyway:
+
+- **npm is deleted.** The container runs `node dist/main.js` and never installs
+  anything, so the package manager the base image bundles is attack surface —
+  and its own dependencies (`tar`, `brace-expansion`, `ip-address`) were what
+  the scanner reported against an image that never calls them.
+- **`apk upgrade` runs at build time.** Alpine had a patched openssl before
+  `node:24-alpine` was rebuilt with it. Waiting for someone else's rebuild is
+  not a vulnerability policy.
+
+**Publishing is narrow on purpose.** The push steps are skipped unless the event
+is a push to `main` or a `v*` tag, so a pull request — including one from a fork
+— can never publish an image. Credentials are the Actions-provided
+`GITHUB_TOKEN`, so no long-lived registry secret is stored anywhere.
+
+Images go to `ghcr.io/<owner>/event-ticketing-api`, tagged with the full commit
+SHA (always), `latest` (default branch only) and the git tag (on `v*`). Every
+running container is therefore traceable to the commit it came from.
+
+**Caching**: the pnpm store is keyed on the lockfile via `setup-node`, and
+Docker layers use the GitHub Actions cache. The image is built once with
+`load: true` so Trivy scans the exact bytes that would be pushed; the push step
+reuses that cache rather than compiling anything a second time.
 
 ## Configuration
 

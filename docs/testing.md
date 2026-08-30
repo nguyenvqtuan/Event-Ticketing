@@ -117,12 +117,38 @@ baseUrl = await app.getUrl();
 const api = () => request(baseUrl);
 ```
 
-The feature suites drive `app.getHttpServer()` in memory, which is the faster
-NestJS idiom and right for them. This one crosses a socket, so the real HTTP
-stack is in the picture, and it asserts what only a journey can: that the
-pieces compose. Availability goes 10 available → 2 held → 2 sold → 10
-available again, from the same overview endpoint a client would poll, and the
-replayed payment returns the first order rather than making a second.
+The feature suites hand `app.getHttpServer()` to supertest instead, which is
+the shorter NestJS idiom. What this one adds is the scenario, not the socket:
+it asserts what only a journey can, that the pieces compose. Availability goes
+10 available → 2 held → 2 sold → 10 available again, from the same overview
+endpoint a client would poll, and the replayed payment returns the first order
+rather than making a second.
+
+### Why the racing suites listen too
+
+`await app.init()` leaves the HTTP server unbound, so supertest starts one
+itself — and the `Test` that started it closes it again the moment **its own**
+request finishes:
+
+```js
+// supertest/lib/test.js
+if (!addr) this._server = app.listen(0);   // only the first Test owns the server
+...
+if (server && server._handle) return server.close(...);  // ...and closes it when done
+```
+
+Serially that is invisible: one request per listen. Under `Promise.all` it is a
+race. The first response to land closes the port out from under the requests
+still in flight, and they fail with `read ECONNRESET` — not a 409, not a 500,
+so the concurrency assertions never even get to run. It is load-sensitive, which
+is why it survived local runs and only bit on a contended CI runner.
+
+So every suite that races requests — `reservations`, `payment-idempotency`,
+`optimistic-locking`, `refund`, `logging`, `expiry` — calls `app.listen(0)` in
+`beforeAll` rather than `app.init()`. The server is then already bound, supertest
+never takes ownership, and `app.close()` in `afterAll` is what shuts it down.
+Suites whose requests are strictly sequential are unaffected and still use
+`app.init()`.
 
 Its steps share state and run in order, because step 4 cannot pay for a hold
 step 3 did not take. That is the point of a journey test — anything needing

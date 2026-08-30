@@ -44,6 +44,18 @@ ENV PORT=3000
 
 WORKDIR /app
 
+# Two hardening steps, both of which the CI scan gate would otherwise fail on:
+#
+#   - Patch OS packages the published base has not picked up yet. Alpine had
+#     the fixed openssl before node:24-alpine was rebuilt with it, and waiting
+#     on someone else's rebuild is not a vulnerability policy.
+#   - Delete npm. This container runs `node dist/main.js` and never installs
+#     anything, so the package manager bundled into the base is pure attack
+#     surface — and its own dependencies (tar, brace-expansion, ip-address)
+#     are what a scanner reports against an image that never calls them.
+RUN apk --no-cache upgrade \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # node:alpine ships an unprivileged `node` user (uid 1000) — no need to create one.
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
