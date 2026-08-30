@@ -25,6 +25,26 @@ services:
       retries: 10
       start_period: 10s
 
+  # Migrations are their own step, not something the API does on boot (TICK-19).
+  #
+  # Booting N replicas that each migrate means N concurrent runners racing for
+  # the same ledger. Worse, it couples "the schema is ready" to "some instance
+  # happened to win" — so a rollout can serve traffic from new code against an
+  # old schema. Running it once, to completion, before anything is rolled out
+  # is what makes that impossible. Same image as the API, so the SQL applied is
+  # exactly the SQL that image's readiness probe expects.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ['node', '--experimental-strip-types', 'scripts/migrate.ts', 'up']
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/event_ticketing
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
   api:
     build:
       # Root context: a pnpm workspace install needs the lockfile and packages.
@@ -43,6 +63,11 @@ services:
         # Not just "started": the API validates config and connects on boot,
         # so racing Postgres would mean a pointless restart loop.
         condition: service_healthy
+      migrate:
+        # The schema is in place before the app that expects it starts. Without
+        # this the API would boot and correctly report itself unready, which is
+        # the right behaviour but a pointless lap to run.
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -56,6 +81,10 @@ services:
       retries: 5
       start_period: 15s
     restart: unless-stopped
+    # Must exceed SHUTDOWN_TIMEOUT_MS (10s) or compose SIGKILLs the container
+    # mid-drain and the graceful path never gets to finish. Compose's default
+    # is 10s, which is exactly the drain budget and leaves no headroom.
+    stop_grace_period: 30s
 
 volumes:
   pgdata:

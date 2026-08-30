@@ -21,6 +21,8 @@ the partial index that measurement rejected.
 locking, isolation level, and deadlock avoidance.
 [`docs/testing.md`](docs/testing.md) — the pyramid, the Testcontainers harness,
 and what unit tests are allowed to know.
+[`docs/runbook.md`](docs/runbook.md) — deploy order, the separate migration
+step, graceful shutdown, and rollback.
 
 ## Layout
 
@@ -42,6 +44,7 @@ docs/
   indexing.md             query plans and index justifications
   concurrency.md          locking, isolation level, overbooking
   testing.md              the pyramid, Testcontainers, coverage policy
+  runbook.md              deploy order, migrations, shutdown, rollback
 ```
 
 A monorepo (rather than two repositories) so the API and the web client share

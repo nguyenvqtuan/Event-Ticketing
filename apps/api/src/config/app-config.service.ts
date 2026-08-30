@@ -40,4 +40,8 @@ export class AppConfigService {
   get corsOrigin(): string {
     return this.config.get('CORS_ORIGIN', { infer: true });
   }
+
+  get shutdownTimeoutMs(): number {
+    return this.config.get('SHUTDOWN_TIMEOUT_MS', { infer: true });
+  }
 }

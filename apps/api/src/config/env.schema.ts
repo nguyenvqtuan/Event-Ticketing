@@ -33,6 +33,18 @@ export const envSchema = z.object({
 
   /** Origin allowed to call the API from a browser. */
   CORS_ORIGIN: z.string().min(1).default('http://localhost:3001'),
+
+  /**
+   * How long a shutdown waits for in-flight requests before giving up on them
+   * (TICK-19).
+   *
+   * Must stay comfortably BELOW the orchestrator's own kill timeout — Kubernetes
+   * `terminationGracePeriodSeconds` (default 30s), compose's `stop_grace_period`
+   * — or the platform SIGKILLs the process mid-drain and the timeout never gets
+   * to do its job. 10s against a 30s grace period leaves room for the pre-stop
+   * delay as well. See docs/runbook.md.
+   */
+  SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 });
 
 export type Env = z.infer<typeof envSchema>;
