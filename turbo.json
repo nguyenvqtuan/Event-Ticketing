@@ -20,7 +20,8 @@
       "dependsOn": ["^build"]
     },
     "test:e2e": {
-      "dependsOn": ["^build"],
+      // Own build, not just dependencies': the config suite spawns dist/main.js.
+      "dependsOn": ["build"],
       "cache": false
     }
   }

@@ -57,3 +57,4 @@ minimumReleaseAgeExclude:
   - jest-worker@30.5.0
   - jest@30.5.0
   - pretty-format@30.5.0
+  - zod@4.5.2

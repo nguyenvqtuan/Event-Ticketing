@@ -4,6 +4,8 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "extensionsToTreatAsEsm": [".ts"],
+  "testTimeout": 30000,
+  "setupFiles": ["<rootDir>/setup-env.ts"],
   "transform": {
     "^.+\\.ts$": ["ts-jest", { "useESM": true, "tsconfig": "<rootDir>/../tsconfig.json" }]
   },

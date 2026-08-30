@@ -8,6 +8,8 @@ describe('GET /ping (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    // Required config is seeded by test/setup-env.ts — it has to be in place
+    // before AppModule is imported, not merely before it is compiled.
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

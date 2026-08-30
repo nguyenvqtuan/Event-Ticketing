@@ -1,17 +1,26 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-
-// TICK-2 replaces these reads with a validated, typed ConfigService.
-const DEFAULT_PORT = 3000;
+import { AppConfigService } from './config/app-config.service.js';
+import { LOG_LEVELS } from './config/log-levels.js';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // Buffer logs until the config is validated, so the logger can be
+  // configured from it rather than guessing a level first.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
-  const port = Number(process.env.PORT ?? DEFAULT_PORT);
-  await app.listen(port);
+  const config = app.get(AppConfigService);
 
-  console.log(`API listening on http://localhost:${port}`);
+  app.useLogger(LOG_LEVELS[config.logLevel]);
+  app.enableCors({ origin: config.corsOrigin });
+  app.enableShutdownHooks();
+
+  await app.listen(config.port);
+
+  new Logger('Bootstrap').log(
+    `API listening on http://localhost:${config.port} [${config.nodeEnv}]`,
+  );
 }
 
 void bootstrap();
