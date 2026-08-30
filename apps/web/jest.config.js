@@ -1,6 +1,9 @@
 /**
- * Unit tests for the parts of this app that are plain TypeScript — the API
- * client and its error mapping.
+ * Unit tests for the API client, its error mapping, and the booking flow.
+ *
+ * `testEnvironment` stays `node`; the component suites opt into jsdom with a
+ * `@jest-environment jsdom` docblock. Paying for a DOM in every suite would
+ * slow the pure-logic ones down for nothing.
  *
  * ESM, like the API's suite and for the same reason: the code under test is
  * ESM and `@repo/contracts` is an ESM package, so `--experimental-vm-modules`
@@ -17,6 +20,9 @@ module.exports = {
   testEnvironment: 'node',
   testRegex: '.*\\.spec\\.tsx?$',
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
+  // jest-dom's matchers (toBeDisabled, toHaveTextContent) for the component
+  // tests. Harmless for the pure-logic suites, which simply do not use them.
+  setupFilesAfterEnv: ['<rootDir>/../jest.setup.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: '<rootDir>/../tsconfig.jest.json' }],
   },

@@ -324,3 +324,44 @@ body {
   text-align: center;
   margin-top: 1.5rem;
 }
+
+/* ---- Booking flow (TICK-F3) ---------------------------------------------- */
+
+.button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.notice {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  font-size: 0.9375rem;
+}
+
+/* Not colour alone: the border weight and a leading marker carry it too. */
+.notice--error {
+  border-color: #dc2626;
+  border-left-width: 4px;
+}
+.notice--error::before {
+  content: '⚠ ';
+}
+
+.notice--success {
+  border-color: var(--accent);
+  border-left-width: 4px;
+}
