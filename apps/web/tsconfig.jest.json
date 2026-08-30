@@ -3,7 +3,11 @@
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": false,
-    "types": ["jest", "node"]
+    // Next compiles JSX itself, so the app config leaves it as `preserve` —
+    // which would hand jest a file still containing `<`. ts-jest has to emit
+    // real function calls.
+    "jsx": "react-jsx",
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

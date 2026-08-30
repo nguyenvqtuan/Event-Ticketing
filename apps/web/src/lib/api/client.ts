@@ -6,7 +6,9 @@ import {
   type CreateEventRequest,
   type CreateEventResponse,
   type CreateReservationRequest,
+  type EventListResponse,
   type EventResponse,
+  type ListEventsQuery,
   type ListSeatsQuery,
   type PayRequest,
   type PayResponse,
@@ -139,6 +141,16 @@ export class ApiClient {
 
   createEvent(body: CreateEventRequest, idempotencyKey?: string): Promise<CreateEventResponse> {
     return this.request('/events', { method: 'POST', body, idempotencyKey });
+  }
+
+  listEvents(
+    query: ListEventsQuery = {},
+    options?: Pick<RequestOptions, 'next' | 'signal'>,
+  ): Promise<EventListResponse> {
+    return this.request('/events', {
+      ...options,
+      query: { limit: query.limit, offset: query.offset },
+    });
   }
 
   getEvent(

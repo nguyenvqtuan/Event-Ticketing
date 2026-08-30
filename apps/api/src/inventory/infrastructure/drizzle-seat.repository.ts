@@ -8,6 +8,7 @@ import {
   type SeatOverview,
   type SeatPage,
   type SeatRepository,
+  type SeatStatus,
   type StoredSeat,
 } from '../domain/inventory-repository.port.js';
 import { type SeatId } from '../domain/seat.js';
@@ -95,18 +96,20 @@ export class DrizzleSeatRepository implements SeatRepository {
 
   async listByAvailability(params: {
     eventId: EventId;
-    status: 'AVAILABLE' | 'HELD' | 'SOLD';
+    status: SeatStatus | 'ALL';
     limit: number;
     offset: number;
   }): Promise<SeatPage> {
     const { eventId, status, limit, offset } = params;
 
     const predicate =
-      status === 'AVAILABLE'
-        ? sql`NOT EXISTS (${LIVE_CLAIM})`
-        : status === 'SOLD'
-          ? sql`EXISTS (${SOLD_CLAIM})`
-          : sql`EXISTS (${LIVE_CLAIM}) AND NOT EXISTS (${SOLD_CLAIM})`;
+      status === 'ALL'
+        ? undefined
+        : status === 'AVAILABLE'
+          ? sql`NOT EXISTS (${LIVE_CLAIM})`
+          : status === 'SOLD'
+            ? sql`EXISTS (${SOLD_CLAIM})`
+            : sql`EXISTS (${LIVE_CLAIM}) AND NOT EXISTS (${SOLD_CLAIM})`;
 
     const where = and(eq(seats.eventId, eventId), predicate);
 
@@ -116,6 +119,16 @@ export class DrizzleSeatRepository implements SeatRepository {
         code: seats.code,
         priceMinor: seats.priceMinor,
         currency: seats.currency,
+        // Derived in the SAME query as the filter, so every seat's status is
+        // read at one instant from one clock. SOLD is checked first because a
+        // sold seat also has a live claim — the order is the definition.
+        status: sql<SeatStatus>`
+          CASE
+            WHEN EXISTS (${SOLD_CLAIM}) THEN 'SOLD'
+            WHEN EXISTS (${LIVE_CLAIM}) THEN 'HELD'
+            ELSE 'AVAILABLE'
+          END
+        `,
       })
       .from(seats)
       .where(where)

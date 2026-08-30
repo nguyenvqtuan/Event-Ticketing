@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { DatabaseContext } from '../../shared/infrastructure/database/database.module.js';
 import { events } from '../../shared/infrastructure/database/schema.js';
 import { Event, type EventId } from '../domain/event.js';
-import { type EventRepository } from '../domain/inventory-repository.port.js';
+import { type EventPage, type EventRepository } from '../domain/inventory-repository.port.js';
 
 /**
  * Maps the Event aggregate to rows and back. Mapping only — no decisions.
@@ -26,6 +26,36 @@ export class DrizzleEventRepository implements EventRepository {
         salesCloseAt: event.salesCloseAt,
       })
       .onConflictDoNothing({ target: events.id });
+  }
+
+  async list(params: { limit: number; offset: number }): Promise<EventPage> {
+    const rows = await this.context.db
+      .select()
+      .from(events)
+      // `id` breaks ties: `starts_at` alone is not a total order, and an
+      // unstable sort under LIMIT/OFFSET drops and repeats rows across pages.
+      .orderBy(asc(events.startsAt), asc(events.id))
+      .limit(params.limit)
+      .offset(params.offset);
+
+    const [counted] = await this.context.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(events);
+
+    return {
+      // Through the same factory as findById, so a row that violates an
+      // invariant fails here rather than spreading into a list page.
+      events: rows.map((row) =>
+        Event.schedule({
+          id: row.id,
+          name: row.name,
+          startsAt: row.startsAt,
+          salesOpenAt: row.salesOpenAt,
+          salesCloseAt: row.salesCloseAt,
+        }),
+      ),
+      total: counted?.total ?? 0,
+    };
   }
 
   async findById(id: EventId): Promise<Event | null> {
