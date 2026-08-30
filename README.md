@@ -21,8 +21,8 @@ the partial index that measurement rejected.
 locking, isolation level, and deadlock avoidance.
 [`docs/testing.md`](docs/testing.md) — the pyramid, the Testcontainers harness,
 and what unit tests are allowed to know.
-[`docs/runbook.md`](docs/runbook.md) — deploy order, the separate migration
-step, graceful shutdown, and rollback.
+[`docs/runbook.md`](docs/runbook.md) — how to deploy, configure, smoke-test and
+roll back, written for someone who did not build it.
 
 ## Layout
 
@@ -44,8 +44,12 @@ docs/
   indexing.md             query plans and index justifications
   concurrency.md          locking, isolation level, overbooking
   testing.md              the pyramid, Testcontainers, coverage policy
-  runbook.md              deploy order, migrations, shutdown, rollback
+  runbook.md              deploy, configure, smoke-test, roll back
 ```
+
+Deploying is [`docs/runbook.md`](docs/runbook.md), and
+`apps/api/scripts/smoke-test.sh <base-url> [--full]` is the post-deploy check it
+ends on — read-only by default, `--full` to buy and refund a seat for real.
 
 A monorepo (rather than two repositories) so the API and the web client share
 one TypeScript and lint configuration today, and shared domain types later.
